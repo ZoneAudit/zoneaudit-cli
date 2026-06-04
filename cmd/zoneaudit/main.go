@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -26,24 +27,68 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Fail fast: Root domain resolution check
+	if _, err := net.LookupHost(*domain); err != nil {
+		fmt.Printf("[CRITICAL] Root domain resolution failed for '%s'. Check connectivity or spelling.\n", *domain)
+		os.Exit(1)
+	}
+
 	// Setup translations
 	if *langOverride != "" {
 		os.Setenv("LANG", *langOverride)
 	}
 	T := i18n.GetStrings()
 
+	var domainExpiry *scanner.DomainExpiry
 	if !*asJSON {
 		fmt.Printf(T.StartingScan+"\n", *domain)
 		fmt.Printf(T.WorkerInfo+"\n", *concurrency, len(scanner.CommonSubdomains))
 		fmt.Printf(T.LangHint + "\n\n")
+
+		// Check Domain Expiry (Pre-scan telemetry)
+		if expiry, err := scanner.GetDomainExpiry(*domain); err == nil {
+			domainExpiry = expiry
+			status := fmt.Sprintf(T.DomainExpiry, expiry.DaysLeft, expiry.ExpiryDate.Format("2006-01-02"))
+			if expiry.IsCritical {
+				fmt.Printf("[!] %s\n\n", T.DomainCritical)
+			}
+			fmt.Printf("[*] %s\n\n", status)
+		}
+	} else {
+		// Silent fetch for JSON output
+		domainExpiry, _ = scanner.GetDomainExpiry(*domain)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	start := time.Now()
-	results := scanner.RunScan(ctx, *domain, *concurrency)
+	var results scanner.ScanResults
+	if *asJSON {
+		results = scanner.RunScan(ctx, *domain, *concurrency, nil)
+	} else {
+		progress := make(chan int, len(scanner.CommonSubdomains))
+		total := len(scanner.CommonSubdomains)
+		done := make(chan bool)
+
+		go func() {
+			count := 0
+			for p := range progress {
+				count += p
+				pct := float64(count) / float64(total) * 100
+				fmt.Printf("\r[*] Tactical Discovery: [%-20s] %3.0f%% ", strings.Repeat("=", int(pct/5)), pct)
+			}
+			fmt.Print("\r" + strings.Repeat(" ", 60) + "\r") // Clear progress line
+			done <- true
+		}()
+
+		results = scanner.RunScan(ctx, *domain, *concurrency, progress)
+		close(progress)
+		<-done
+	}
 	duration := time.Since(start)
+
+	results.DomainExpiry = domainExpiry
 
 	if *asJSON {
 		json.NewEncoder(os.Stdout).Encode(results)
@@ -53,9 +98,34 @@ func main() {
 	// Terminal Output
 	for _, res := range results.Active {
 		fmt.Printf("[+] %-25s | ", res.Subdomain)
-		for _, rec := range res.Records {
+
+		// DNS summary
+		if len(res.Records) > 0 {
+			rec := res.Records[0]
 			fmt.Printf("%s: %-15s ", rec.Type, rec.Value[0])
 		}
+
+		// HTTP metadata
+		if res.HTTP != nil {
+			meta := fmt.Sprintf("HTTP:%d", res.HTTP.Status)
+			if res.HTTP.Server != "" {
+				meta += " (" + res.HTTP.Server + ")"
+			}
+			if res.HTTP.Title != "" {
+				meta += " [" + res.HTTP.Title + "]"
+			}
+			fmt.Printf("| %s ", meta)
+		}
+
+		// Additional discovery records (MX, TXT, etc.)
+		for _, rec := range res.Records {
+			if rec.Type == "A/AAAA" || rec.Type == "CNAME" {
+				continue
+			}
+			fmt.Printf("| %s: %v ", rec.Type, rec.Value[0])
+		}
+
+		// SSL summary
 		if res.SSL != nil {
 			status := T.SSLOK
 			if res.SSL.IsCritical {

@@ -15,13 +15,17 @@ type LanguageStrings struct {
 	DurationInfo    string
 	BillboardTip    string
 	BillboardTest   string
-	BillboardAccess string
-	LangHint        string
+	BillboardAccess  string
+	LangHint         string
+	DomainExpiry     string
+	DomainCritical   string
+	RateLimitError   string
+	TimeoutError     string
 }
 
 var en = LanguageStrings{
-	StartingScan:    "Starting ZoneAudit community scan for: %s",
-	WorkerInfo:      "Workers: %d | Tactical wordlist: %d entries",
+	StartingScan:    "Starting ZoneAudit tactical scan for: %s",
+	WorkerInfo:      "Workers: %d | Tactical wordlist: %d high-value entries",
 	SSLInfo:         "| SSL: %s (%d days left)",
 	SSLOK:           "OK",
 	SSLExpiring:     "EXPIRING SOON",
@@ -31,10 +35,14 @@ var en = LanguageStrings{
 	BillboardTest:   "Pass the \"3 am wake-up test\" with AI-enriched intelligent insights.",
 	BillboardAccess: "Get early access to the full platform at https://zoneaudit.com?utm_source=cli&utm_medium=terminal&utm_campaign=community_edition",
 	LangHint:        "Note: Alternative languages available via -lang [fr|de]",
+	DomainExpiry:    "Domain Expiring in %d days (%s)",
+	DomainCritical:  "CRITICAL: Domain Expiry Looming",
+	RateLimitError:  "Rate limit encountered. Throttling...",
+	TimeoutError:    "Request timed out.",
 }
 
 var fr = LanguageStrings{
-	StartingScan:    "Démarrage du scan communautaire ZoneAudit pour : %s",
+	StartingScan:    "Démarrage du scan tactique ZoneAudit pour : %s",
 	WorkerInfo:      "Travailleurs : %d | Liste de mots tactique : %d entrées",
 	SSLInfo:         "| SSL : %s (%d jours restants)",
 	SSLOK:           "OK",
@@ -45,11 +53,15 @@ var fr = LanguageStrings{
 	BillboardTest:   "Passez le « test du réveil à 3h du matin » avec l'IA.",
 	BillboardAccess: "Accès anticipé à la plateforme complète sur https://zoneaudit.com?utm_source=cli&utm_medium=terminal&utm_campaign=community_edition_fr",
 	LangHint:        "Note : Autres langues disponibles via -lang [en|de]",
+	DomainExpiry:    "Le domaine expire dans %d jours (%s)",
+	DomainCritical:  "CRITIQUE : Expiration du domaine imminente",
+	RateLimitError:  "Limite de débit atteinte. Ralentissement...",
+	TimeoutError:    "Délai d'attente dépassé.",
 }
 
 var de = LanguageStrings{
-	StartingScan:    "Starte ZoneAudit Community-Scan für: %s",
-	WorkerInfo:      "Worker: %d | Taktische Wortliste: %d Einträge",
+	StartingScan:    "Starte taktischen ZoneAudit-Scan für: %s",
+	WorkerInfo:      "Worker: %d | Taktische Wortliste: %d hochkarätige Einträge",
 	SSLInfo:         "| SSL: %s (%d Tage verbleibend)",
 	SSLOK:           "OK",
 	SSLExpiring:     "LÄUFT BALD AB",
@@ -59,6 +71,10 @@ var de = LanguageStrings{
 	BillboardTest:   "Bestehen Sie den „3-Uhr-Morgens-Test“ mit KI-Einblicken.",
 	BillboardAccess: "Früher Zugang zur vollständigen Plattform unter https://zoneaudit.com?utm_source=cli&utm_medium=terminal&utm_campaign=community_edition_de",
 	LangHint:        "Hinweis: Alternative Sprachen verfügbar über -lang [en|fr]",
+	DomainExpiry:    "Domain läuft in %d Tagen ab (%s)",
+	DomainCritical:  "KRITISCH: Domain-Ablauf steht bevor",
+	RateLimitError:  "Ratenbegrenzung erreicht. Drosselung...",
+	TimeoutError:    "Zeitüberschreitung der Anforderung.",
 }
 
 func GetStrings() LanguageStrings {
