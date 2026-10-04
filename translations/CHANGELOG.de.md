@@ -12,14 +12,14 @@ und dieses Projekt hält sich an [Semantic Versioning](https://semver.org/spec/v
 ### Hinzugefügt
 - **RDAP-Integration**: Automatisches Abrufen von Domain-Ablaufdaten zur Identifizierung kritischer Erneuerungsrisiken.
 - **Service-Fingerprinting**: Extraktion von HTTP-Bannern und Seitentiteln für aktive Webdienste.
-- **Taktischer Fortschrittsbalken**: Echtzeit-Terminal-Fortschrittsanzeige für die Subdomain-Entdeckung.
+- **Fortschrittsbalken**: Echtzeit-Terminal-Fortschrittsanzeige für die Subdomain-Entdeckung.
 - **E-Mail-Sicherheitsbasis**: Vorhandenseinsprüfugen für SPF- und DMARC-Einträge.
 - **Erkennung hängender DNS**: Proaktive Kennzeichnung von CNAME-Einträgen, die auf nicht existierende Ziele verweisen.
 - **Fail-Fast-Auflösung**: Sofortige Validierung der Root-Domain-Konnektivität vor dem Scannen.
 - **Mehrsprachige Unterstützung**: Volle Unterstützung für Terminalausgabe und Dokumentation in Französisch (`fr`) und Deutsch (`de`).
 
 ### Geändert
-- Taktische Wortliste auf 143 hochwertige Infrastruktur-Hotspots erweitert.
+- Wortliste auf 143 gängige Infrastruktur-Hostnamen erweitert.
 - Terminal-Ausgabe für „Engineering Precision“ überarbeitet – operative Klarheit hat Vorrang vor rohen Daten-Dumps.
 - Architektur-Dokumentation auf vertikale Mermaid-Flows aktualisiert.
 

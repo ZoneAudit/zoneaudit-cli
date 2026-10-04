@@ -2,7 +2,7 @@
 
 > **Languages:** [English](README.en.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
 
-**Tactical discovery of core digital perimeters with high-velocity Go telemetry.**
+**Fast, read-only discovery of a domain's public footprint: subdomains, DNS, certificates, domain expiry and email security.**
 
 ZoneAudit™ Community Edition is built for rapid mapping of high-value subdomains and active DNS validation. It handles the heavy lifting of network probing by discovering critical entry points, validating active DNS resolution, and running targeted heuristics to spot risks like dangling CNAMEs and orphaned infrastructure before attackers do.
 
@@ -34,8 +34,8 @@ architecture-beta
 
 This utility is designed to function as a standalone worker for the ZoneAudit data pipeline.
 
-1. **The Community Edition (This repo):** Runs high-velocity concurrent scans and provides raw telemetry (DNS, SSL, RDAP, HTTP) in text or JSON format.
-2. **The ZoneAudit Platform:** Processes telemetry through an asynchronous AI engine to generate **DeepScan Intelligent Insight™** reports designed to pass the "3 AM wake-up test" for business executives in under 3 seconds.
+1. **The Community Edition (This repo):** Runs concurrent lookups and provides raw findings (DNS, SSL, RDAP, HTTP) in text or JSON format.
+2. **The ZoneAudit Platform:** Processes telemetry through an asynchronous AI engine to generate **DeepScan Intelligent Insight™** reports that a director can read and act on in a few minutes.
 
 ---
 
@@ -48,7 +48,7 @@ Only scan domains you own or are authorised to assess. ZoneAudit Community Editi
 ### Capabilities (v0.2.0)
 
 - **Domain Intelligence**: RDAP-driven domain expiration alerts.
-- **Tactical Discovery**: 140+ high-value subdomains targeted for infrastructure hotspots.
+- **Subdomain Discovery**: 143 common infrastructure hostnames checked.
 - **Service Fingerprinting**: HTTP banner and page title extraction.
 - **Security Validation**: SSL/TLS certificate expiry and issuer verification.
 - **Multilingual**: Full output support for English, French, and German.
@@ -103,22 +103,21 @@ zoneaudit -d example.com -json
 
 ## Roadmap and Community Future
 
-**ZoneAudit™ Community Edition** is the lightweight, open-source entry point to our ecosystem. While the current focus is on high-velocity subdomain and SSL/TLS telemetry, we are evaluating the following capabilities for future releases:
+**ZoneAudit™ Community Edition** is the lightweight, open-source entry point to our ecosystem. While the current focus is on subdomain, DNS and TLS findings, we are evaluating the following capabilities for future releases:
 
 - **Enhanced Protocol Probing**: Native SMTP, FTP, and SSH handshake heuristics to identify exposed legacy services.
 - **Header Analysis**: Passive inspection of security headers (HSTS, CSP, X-Frame-Options) during HTTP(S) validation.
-- **Port Discovery**: Integration of targeted port scans for standard high-risk industrial and database ports.
 - **Local Persistence**: Support for local SQLite storage to track historical changes to an attack surface over time.
 
 We welcome feedback on which features would best support your security workflows.
 
 ---
 
-## Accessing the Full Enterprise Infrastructure
+## From findings to a readiness review
 
-While this CLI utility handles raw data collection, the full enterprise experience offers automated scheduling, a centralised ingestion backend, and AI-driven triage reporting.
+This CLI collects the raw findings. A ZoneAudit readiness review turns them into a prioritised report with fixes, including DCC Level 0 readiness for suppliers to the Ministry of Defence.
 
-[Join the ZoneAudit.com Waitlist](https://zoneaudit.com?utm_source=github&utm_medium=readme&utm_campaign=community_edition) for early access to the **ZoneAudit™** platform for advanced external attack surface intelligence.
+[Arrange a ZoneAudit readiness review](https://zoneaudit.com?utm_source=github&utm_medium=readme&utm_campaign=community_edition)
 
 ---
 

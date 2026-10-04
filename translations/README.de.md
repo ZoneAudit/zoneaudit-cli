@@ -2,7 +2,7 @@
 
 > **Sprachen:** [English](README.en.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
 
-**Taktische Entdeckung digitaler Kernperimeter mit Hochgeschwindigkeits-Go-Telemetrie.**
+**Schnelle, rein lesende Erfassung des öffentlichen Fußabdrucks einer Domain: Subdomains, DNS, Zertifikate, Domain-Ablauf und E-Mail-Sicherheit.**
 
 Die ZoneAudit™ Community Edition ist für die schnelle Kartierung hochwertiger Subdomains und die aktive DNS-Validierung konzipiert. Sie übernimmt die schwere Arbeit des Netzwerk-Probing, indem sie kritische Einstiegspunkte entdeckt, die aktive DNS-Auflösung validiert und gezielte Heuristiken ausführt, um Risiken wie hängende CNAMEs und verwaiste Infrastrukturen zu erkennen, bevor Angreifer es tun.
 
@@ -34,8 +34,8 @@ architecture-beta
 
 Dieses Utility ist als eigenständiger Worker für die ZoneAudit-Datenpipeline konzipiert.
 
-1. **Die Community Edition (Dieses Repo):** Führt Hochgeschwindigkeits-Scans durch und liefert rohe Telemetrie (DNS, SSL, RDAP, HTTP) im Text- oder JSON-Format.
-2. **Die ZoneAudit-Plattform:** Verarbeitet Telemetrie durch eine asynchrone KI-Engine, um **DeepScan Intelligent Insight™** Berichte zu erstellen, die den „3-Uhr-Morgens-Test“ für Führungskräfte in 3 Sekunden bestehen.
+1. **Die Community Edition (Dieses Repo):** Führt parallele Abfragen durch und liefert Rohergebnisse (DNS, SSL, RDAP, HTTP) im Text- oder JSON-Format.
+2. **Die ZoneAudit-Plattform:** Verarbeitet Telemetrie durch eine asynchrone KI-Engine, um **DeepScan Intelligent Insight™** Berichte zu erstellen, die eine Geschäftsführung in wenigen Minuten lesen und umsetzen kann.
 
 ---
 
@@ -48,7 +48,7 @@ Scannen Sie nur Domains, die Ihnen gehören oder für deren Prüfung Sie autoris
 ### Funktionen (v0.2.0)
 
 - **Domain Intelligence**: RDAP-gesteuerte Warnungen zum Domainablauf.
-- **Taktische Entdeckung**: Über 140 hochwertige Subdomains, gezielt für Infrastruktur-Hotspots.
+- **Subdomain-Erkennung**: 143 gängige Infrastruktur-Hostnamen werden geprüft.
 - **Service-Fingerprinting**: Extraktion von HTTP-Bannern und Seitentiteln.
 - **Sicherheitsvalidierung**: Überprüfung von SSL/TLS-Zertifikatsablauf und Aussteller.
 - **Mehrsprachig**: Volle Unterstützung der Ausgabe für Englisch, Französisch und Deutsch.
@@ -103,22 +103,21 @@ zoneaudit -d example.com -json
 
 ## Roadmap und Community-Zukunft
 
-Die **ZoneAudit™ Community Edition** ist der leichtgewichtige Open-Source-Einstiegspunkt in unser Ökosystem. Während der aktuelle Fokus auf Hochgeschwindigkeits-Subdomain- und SSL/TLS-Telemetrie liegt, evaluieren wir die folgenden Funktionen für zukünftige Versionen:
+Die **ZoneAudit™ Community Edition** ist der leichtgewichtige Open-Source-Einstiegspunkt in unser Ökosystem. Während der aktuelle Fokus auf Subdomain-, DNS- und TLS-Ergebnissen liegt, evaluieren wir die folgenden Funktionen für zukünftige Versionen:
 
 - **Erweitertes Protokoll-Probing**: Native SMTP-, FTP- und SSH-Handshake-Heuristiken zur Identifizierung exponierter Legacy-Dienste.
 - **Header-Analyse**: Passive Inspektion von Security-Headern (HSTS, CSP, X-Frame-Options) während der HTTP(S)-Validierung.
-- **Port-Erkennung**: Integration gezielter Port-Scans für standardmäßige Hochrisiko-Industrie- und Datenbank-Ports.
 - **Lokale Persistenz**: Unterstützung für lokale SQLite-Speicherung zur Verfolgung historischer Änderungen einer Angriffsoberfläche im Laufe der Zeit.
 
 Wir freuen uns über Feedback dazu, welche dieser oder anderer Funktionen Ihre Security-Workflows am besten unterstützen würden.
 
 ---
 
-## Zugang zur vollständigen Enterprise-Infrastruktur
+## Von Ergebnissen zur Readiness-Prüfung
 
-Während dieses CLI-Tool die rohe Datenerfassung übernimmt, bietet die vollständige Enterprise-Lösung automatisierte Zeitplanung, ein zentralisiertes Ingestion-Backend und KI-gesteuerte Triage-Berichte.
+Dieses CLI-Tool sammelt die Rohergebnisse. Eine ZoneAudit-Readiness-Prüfung macht daraus einen priorisierten Bericht mit Maßnahmen, einschließlich DCC Level 0 für Zulieferer des britischen Verteidigungsministeriums.
 
-[Melden Sie sich auf der Warteliste von ZoneAudit.com an](https://zoneaudit.com?utm_source=github&utm_medium=readme&utm_campaign=community_edition_de) um frühen Zugang zur Plattform **ZoneAudit™** für fortschrittliche externe Attack Surface Intelligence zu erhalten.
+[ZoneAudit-Readiness-Prüfung anfragen](https://zoneaudit.com?utm_source=github&utm_medium=readme&utm_campaign=community_edition_de)
 
 ---
 

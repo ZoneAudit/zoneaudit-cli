@@ -81,7 +81,7 @@ func main() {
 			for p := range progress {
 				count += p
 				pct := float64(count) / float64(total) * 100
-				fmt.Printf("\r[*] Tactical Discovery: [%-20s] %3.0f%% ", strings.Repeat("=", int(pct/5)), pct)
+				fmt.Printf("\r[*] Discovery: [%-20s] %3.0f%% ", strings.Repeat("=", int(pct/5)), pct)
 			}
 			fmt.Print("\r" + strings.Repeat(" ", 60) + "\r") // Clear progress line
 			done <- true
@@ -157,6 +157,8 @@ func main() {
 	fmt.Printf("\n[*] "+T.EmailSecurity+"\n", spf, dmarc)
 	if !es.DMARC {
 		fmt.Printf("[!] %s\n", T.DMARCMissing)
+	} else if es.DMARCPolicy == "none" {
+		fmt.Printf("[!] %s\n", T.DMARCNone)
 	}
 
 	renderBillboard(T, *domain, len(results.Active), duration)

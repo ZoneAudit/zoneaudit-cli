@@ -12,14 +12,14 @@ et ce projet adhère au [Versionnement Sémantique](https://semver.org/spec/v2.0
 ### Ajouté
 - **Intégration RDAP** : Récupération automatisée des dates d'expiration des domaines pour identifier les risques critiques de renouvellement.
 - **Empreinte de service** : Extraction des bannières HTTP et des titres de page pour les services web actifs.
-- **Barre de progression tactique** : Indicateur de progression en temps réel pour la découverte de sous-domaines.
+- **Barre de progression** : Indicateur de progression en temps réel pour la découverte de sous-domaines.
 - **Base de sécurité des e-mails** : Vérification de la présence des enregistrements SPF et DMARC.
 - **Détection DNS pendante** : Signalisation proactive des enregistrements CNAME pointant vers des cibles inexistantes.
 - **Résolution "Fail-Fast"** : Validation immédiate de la connectivité du domaine racine avant le scan.
 - **Support multilingue** : Prise en charge complète de la sortie terminal et de la documentation pour le français (`fr`) et l'allemand (`de`).
 
 ### Changé
-- Liste de mots tactiques étendue à 143 points chauds d'infrastructure à haute valeur.
+- Liste de mots étendue à 143 noms d'hôtes d'infrastructure courants.
 - Refonte de la sortie terminal pour une "Engineering Precision" : donnant la priorité à la clarté opérationnelle sur les vidages de données brutes.
 - Mise à jour de la documentation d'architecture pour utiliser des flux Mermaid verticaux.
 

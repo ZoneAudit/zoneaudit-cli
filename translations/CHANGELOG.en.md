@@ -12,14 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **RDAP Integration**: Automated fetching of domain expiration dates to identify critical renewal risks.
 - **Service Fingerprinting**: HTTP banner and page title extraction for active web services.
-- **Tactical Progress Bar**: Real-time terminal progress indicator for subdomain discovery.
+- **Progress Bar**: Real-time terminal progress indicator for subdomain discovery.
 - **Email Security Baseline**: SPF and DMARC reported separately for the root domain, with the DMARC policy; a missing DMARC record is flagged.
 - **Dangling DNS Detection**: Proactive flagging of CNAME records pointing to non-existent targets.
 - **Fail-Fast Resolution**: Immediate validation of root domain connectivity before scanning.
 - **Multilingual Support**: Full terminal output and documentation support for French (`fr`) and German (`de`).
 
 ### Changed
-- Expanded tactical wordlist to 143 high-value infrastructure hotspots.
+- Expanded the wordlist to 143 common infrastructure hostnames.
 - Refactored terminal output for "Engineering Precision": prioritising operational clarity over raw data dumps.
 - Upgraded architecture documentation to use vertical Mermaid flows.
 

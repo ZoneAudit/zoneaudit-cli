@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// CommonSubdomains is a tactical list for the light version focusing on high-value infrastructure.
+// CommonSubdomains is the hostname list for the Community Edition, covering common infrastructure names.
 // In the full DeepScan™ enterprise engine, this is driven by massive wordlists, passive discovery, and heuristics.
 var CommonSubdomains = []string{
 	"www", "mail", "remote", "blog", "webmail", "server", "ns1", "ns2",
