@@ -39,6 +39,10 @@ This utility is designed to function as a standalone worker for the ZoneAudit da
 
 ---
 
+## Responsible use
+
+Only scan domains you own or are authorised to assess. ZoneAudit Community Edition resolves DNS records and makes one light HTTP(S) request and TLS handshake to each host it discovers; it does not scan ports or attempt access.
+
 ## Getting Started
 
 ### Capabilities (v0.2.0)

@@ -39,6 +39,10 @@ Cet utilitaire est conçu pour fonctionner comme un agent indépendant pour le p
 
 ---
 
+## Utilisation responsable
+
+Analysez uniquement les domaines dont vous êtes propriétaire ou que vous êtes autorisé à évaluer. ZoneAudit Community Edition résout les enregistrements DNS et effectue une seule requête HTTP(S) légère et une négociation TLS vers chaque hôte découvert ; il ne scanne pas les ports et ne tente aucun accès.
+
 ## Mise en route
 
 ### Capacités (v0.2.0)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
@@ -117,32 +118,42 @@ func CheckSubdomain(ctx context.Context, fqdn string) Result {
 		})
 	}
 
-	// Email Security Presence Check (DMARC/SPF/DKIM indicators)
-	if fqdn == strings.TrimSuffix(fqdn, ".") { // Root or major subdomain
-		if checkEmailSecurity(lookupCtx, resolver, fqdn) {
-			res.Records = append(res.Records, Record{
-				Type:  "EMAIL-SEC",
-				Value: []string{"Configured"},
-			})
-		}
-	}
-
 	return res
 }
 
-func checkEmailSecurity(ctx context.Context, r *net.Resolver, domain string) bool {
-	// Simple presence check for SPF or DMARC
-	txts, _ := r.LookupTXT(ctx, domain)
+// EmailSecurity reports SPF and DMARC separately for the root domain.
+// Presence of one never implies the other: a domain with SPF but no DMARC is still spoofable.
+type EmailSecurity struct {
+	SPF         bool   `json:"spf"`
+	DMARC       bool   `json:"dmarc"`
+	DMARCPolicy string `json:"dmarc_policy,omitempty"`
+}
+
+// CheckEmailSecurity looks up SPF on the domain and DMARC on _dmarc.<domain>.
+func CheckEmailSecurity(ctx context.Context, domain string) EmailSecurity {
+	var es EmailSecurity
+	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	r := net.DefaultResolver
+	txts, _ := r.LookupTXT(lookupCtx, domain)
 	for _, txt := range txts {
-		if strings.Contains(txt, "v=spf1") {
-			return true
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(txt)), "v=spf1") {
+			es.SPF = true
 		}
 	}
-	dmarcTxts, _ := r.LookupTXT(ctx, "_dmarc."+domain)
-	if len(dmarcTxts) > 0 {
-		return true
+	dmarcTxts, _ := r.LookupTXT(lookupCtx, "_dmarc."+domain)
+	for _, txt := range dmarcTxts {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(txt)), "v=dmarc1") {
+			es.DMARC = true
+			for _, part := range strings.Split(txt, ";") {
+				kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+				if len(kv) == 2 && strings.EqualFold(kv[0], "p") {
+					es.DMARCPolicy = strings.ToLower(strings.TrimSpace(kv[1]))
+				}
+			}
+		}
 	}
-	return false
+	return es
 }
 
 func checkSSL(fqdn string) *SSLInfo {
@@ -207,7 +218,7 @@ func checkHTTP(fqdn string) *HTTPInfo {
 		if n > 0 {
 			matches := titleRegex.FindStringSubmatch(string(body[:n]))
 			if len(matches) > 1 {
-				info.Title = strings.TrimSpace(matches[1])
+				info.Title = strings.TrimSpace(html.UnescapeString(matches[1]))
 			}
 		}
 

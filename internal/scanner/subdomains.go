@@ -31,11 +31,12 @@ var CommonSubdomains = []string{
 
 // ScanResults contains the summary of a scan run.
 type ScanResults struct {
-	Domain       string        `json:"domain"`
-	Version      string        `json:"version"`
-	DomainExpiry *DomainExpiry `json:"domain_expiry,omitempty"`
-	Active       []Result      `json:"active"`
-	Total        int           `json:"total_scanned"`
+	Domain        string         `json:"domain"`
+	Version       string         `json:"version"`
+	DomainExpiry  *DomainExpiry  `json:"domain_expiry,omitempty"`
+	EmailSecurity *EmailSecurity `json:"email_security,omitempty"`
+	Active        []Result       `json:"active"`
+	Total         int            `json:"total_scanned"`
 }
 
 // RunScan executes a concurrent scan against a domain using the common wordlist.

@@ -39,6 +39,10 @@ Dieses Utility ist als eigenständiger Worker für die ZoneAudit-Datenpipeline k
 
 ---
 
+## Verantwortungsvolle Nutzung
+
+Scannen Sie nur Domains, die Ihnen gehören oder für deren Prüfung Sie autorisiert sind. ZoneAudit Community Edition löst DNS-Einträge auf und sendet an jeden gefundenen Host eine einzelne, leichte HTTP(S)-Anfrage und einen TLS-Handshake; es scannt keine Ports und versucht keinen Zugriff.
+
 ## Erste Schritte
 
 ### Funktionen (v0.2.0)

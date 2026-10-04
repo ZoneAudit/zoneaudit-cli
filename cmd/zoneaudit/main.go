@@ -24,11 +24,16 @@ func main() {
 	if *domain == "" {
 		fmt.Println("Usage: zoneaudit -d <domain> [-c <concurrency>] [-json] [-lang <en|fr|de>]")
 		flag.PrintDefaults()
+		fmt.Println("\nOnly scan domains you own or are authorised to assess. ZoneAudit resolves DNS and makes")
+		fmt.Println("one light HTTP(S) request and TLS handshake to each discovered host.")
 		os.Exit(1)
 	}
 
 	// Fail fast: Root domain resolution check
-	if _, err := net.LookupHost(*domain); err != nil {
+	// A domain may have no A record (e.g. mail-only), so NS records also count as resolving.
+	_, hostErr := net.LookupHost(*domain)
+	_, nsErr := net.LookupNS(*domain)
+	if hostErr != nil && nsErr != nil {
 		fmt.Printf("[CRITICAL] Root domain resolution failed for '%s'. Check connectivity or spelling.\n", *domain)
 		os.Exit(1)
 	}
@@ -89,6 +94,8 @@ func main() {
 	duration := time.Since(start)
 
 	results.DomainExpiry = domainExpiry
+	es := scanner.CheckEmailSecurity(ctx, *domain)
+	results.EmailSecurity = &es
 
 	if *asJSON {
 		json.NewEncoder(os.Stdout).Encode(results)
@@ -134,6 +141,22 @@ func main() {
 			fmt.Printf(T.SSLInfo, status, res.SSL.DaysLeft)
 		}
 		fmt.Println()
+	}
+
+	// Email security summary for the root domain: SPF and DMARC reported separately
+	spf, dmarc := T.Missing, T.Missing
+	if es.SPF {
+		spf = T.Present
+	}
+	if es.DMARC {
+		dmarc = T.Present
+		if es.DMARCPolicy != "" {
+			dmarc += " (p=" + es.DMARCPolicy + ")"
+		}
+	}
+	fmt.Printf("\n[*] "+T.EmailSecurity+"\n", spf, dmarc)
+	if !es.DMARC {
+		fmt.Printf("[!] %s\n", T.DMARCMissing)
 	}
 
 	renderBillboard(T, *domain, len(results.Active), duration)

@@ -15,12 +15,16 @@ type LanguageStrings struct {
 	DurationInfo    string
 	BillboardTip    string
 	BillboardTest   string
-	BillboardAccess  string
-	LangHint         string
-	DomainExpiry     string
-	DomainCritical   string
-	RateLimitError   string
-	TimeoutError     string
+	BillboardAccess string
+	LangHint        string
+	DomainExpiry    string
+	DomainCritical  string
+	RateLimitError  string
+	TimeoutError    string
+	EmailSecurity   string
+	DMARCMissing    string
+	Present         string
+	Missing         string
 }
 
 var en = LanguageStrings{
@@ -39,11 +43,15 @@ var en = LanguageStrings{
 	DomainCritical:  "CRITICAL: Domain Expiry Looming",
 	RateLimitError:  "Rate limit encountered. Throttling...",
 	TimeoutError:    "Request timed out.",
+	EmailSecurity:   "Email security: SPF %s | DMARC %s",
+	DMARCMissing:    "No DMARC record: this domain can be spoofed in email.",
+	Present:         "present",
+	Missing:         "MISSING",
 }
 
 var fr = LanguageStrings{
 	StartingScan:    "Démarrage du scan tactique ZoneAudit pour : %s",
-	WorkerInfo:      "Travailleurs : %d | Liste de mots tactique : %d entrées",
+	WorkerInfo:      "Tâches parallèles : %d | Liste de mots tactique : %d entrées",
 	SSLInfo:         "| SSL : %s (%d jours restants)",
 	SSLOK:           "OK",
 	SSLExpiring:     "EXPIRE BIENTÔT",
@@ -57,6 +65,10 @@ var fr = LanguageStrings{
 	DomainCritical:  "CRITIQUE : Expiration du domaine imminente",
 	RateLimitError:  "Limite de débit atteinte. Ralentissement...",
 	TimeoutError:    "Délai d'attente dépassé.",
+	EmailSecurity:   "Sécurité e-mail : SPF %s | DMARC %s",
+	DMARCMissing:    "Aucun enregistrement DMARC : ce domaine peut être usurpé par e-mail.",
+	Present:         "présent",
+	Missing:         "ABSENT",
 }
 
 var de = LanguageStrings{
@@ -75,6 +87,10 @@ var de = LanguageStrings{
 	DomainCritical:  "KRITISCH: Domain-Ablauf steht bevor",
 	RateLimitError:  "Ratenbegrenzung erreicht. Drosselung...",
 	TimeoutError:    "Zeitüberschreitung der Anforderung.",
+	EmailSecurity:   "E-Mail-Sicherheit: SPF %s | DMARC %s",
+	DMARCMissing:    "Kein DMARC-Eintrag: Diese Domain kann per E-Mail gefälscht werden.",
+	Present:         "vorhanden",
+	Missing:         "FEHLT",
 }
 
 func GetStrings() LanguageStrings {
