@@ -1,6 +1,6 @@
 # ZoneAudit™ Community Edition
 
-> **Languages:** [English](translations/README.en.md) | [Français](translations/README.fr.md) | [Deutsch](translations/README.de.md)
+> **Languages:** [English](README.en.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
 
 **Fast, read-only discovery of a domain's public footprint: subdomains, DNS, certificates, domain expiry and email security.**
 
@@ -53,7 +53,7 @@ Only scan domains you own or are authorised to assess. ZoneAudit Community Editi
 - **Security Validation**: SSL/TLS certificate expiry and issuer verification.
 - **Multilingual**: Full output support for English, French, and German.
 
-Check the [CHANGELOG.md](CHANGELOG.md) for the full list of changes.
+Check the [CHANGELOG.en.md](CHANGELOG.en.md) for the full list of changes.
 
 ### Supported Languages
 
@@ -61,9 +61,9 @@ The CLI supports the following languages. Note that translations are provided as
 
 | Language | Code | Activation | Documentation |
 | :--- | :--- | :--- | :--- |
-| English | `en` | Default | [README.en.md](translations/README.en.md) |
-| Français | `fr` | `-lang fr` or `LANG=fr` | [README.fr.md](translations/README.fr.md) |
-| Deutsch | `de` | `-lang de` or `LANG=de` | [README.de.md](translations/README.de.md) |
+| English | `en` | Default | [README.en.md](README.en.md) |
+| Français | `fr` | `-lang fr` or `LANG=fr` | [README.fr.md](README.fr.md) |
+| Deutsch | `de` | `-lang de` or `LANG=de` | [README.de.md](README.de.md) |
 
 #### Setting Language Environment Variable
 
@@ -140,6 +140,6 @@ Keep an eye on existing style and ensure any new logic is tested.
 
 ### License
 
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for the full text.
+This project is licensed under the **MIT License**. See the [LICENSE](../LICENSE) file for the full text.
 
 ### 🇬🇧 Engineering Precision from the UK by [CobraSphere](https://cobrasphere.com?utm_source=github&utm_medium=readme&utm_campaign=community_edition)
