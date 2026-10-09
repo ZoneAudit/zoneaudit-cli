@@ -1,11 +1,25 @@
-# .goreleaser.yaml
-version: 1
+# GoReleaser configuration for the ZoneAudit Community Edition CLI.
+# Release: push a tag vX.Y.Z; .github/workflows/release.yml runs this.
+# Local check: goreleaser release --snapshot --clean --skip=sign
+version: 2
+
+project_name: zoneaudit-cli
+
 before:
   hooks:
     - go mod tidy
+
 builds:
-  - env:
+  - id: zoneaudit
+    main: ./cmd/zoneaudit
+    binary: zoneaudit
+    env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/ZoneAudit/zoneaudit-cli/internal/scanner.Version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
       - windows
@@ -13,25 +27,126 @@ builds:
     goarch:
       - amd64
       - arm64
-    main: ./cmd/zoneaudit/main.go
-    binary: zoneaudit
 
 archives:
-  - format: tar.gz
-    # use zip for windows archives
+  - id: default
+    # The one-line installers (zoneaudit.com/install.sh and install.ps1)
+    # depend on this exact name. Do not change it.
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - SECURITY.md
 
 checksum:
-  name_template: 'checksums.txt'
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# One SPDX SBOM per archive, made with syft.
+sboms:
+  - id: archives
+    artifacts: archive
+
+# Keyless signature of checksums.txt with cosign, using the workflow's
+# GitHub OIDC identity. No keys or secrets are stored. checksums.txt covers
+# every archive and SBOM, so verifying it verifies them all.
+signs:
+  - id: checksums
+    cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    output: true
+
+# Homebrew package and Scoop manifest. Both are always generated into
+# dist/ (dist/homebrew/Casks/zoneaudit.rb and dist/scoop/zoneaudit.json).
+# They are pushed to ZoneAudit/homebrew-tap and ZoneAudit/scoop-bucket only
+# when the PACKAGES_TOKEN environment variable is set; otherwise the upload
+# is skipped and the release still succeeds.
+#
+# GoReleaser v2.10 deprecated generating Homebrew formulas for prebuilt
+# binaries ("brews") in favour of casks, so the Homebrew package is a cask.
+# Users install it with: brew install zoneaudit/tap/zoneaudit
+homebrew_casks:
+  - name: zoneaudit
+    ids: [default]
+    binaries: [zoneaudit]
+    repository:
+      owner: ZoneAudit
+      name: homebrew-tap
+      branch: main
+      token: '{{ envOrDefault "PACKAGES_TOKEN" "" }}'
+    directory: Casks
+    homepage: "https://github.com/ZoneAudit/zoneaudit-cli"
+    description: "Read-only snapshot of a domain's public DNS, certificates, web banners and email security"
+    license: "MIT"
+    commit_author:
+      name: zoneaudit-release
+      email: security@cobrasphere.com
+    commit_msg_template: "zoneaudit {{ .Tag }}"
+    skip_upload: '{{ if eq (envOrDefault "PACKAGES_TOKEN" "") "" }}true{{ else }}false{{ end }}'
+    hooks:
+      post:
+        # The binary is not notarised by Apple. The archive's integrity is
+        # covered by the signed checksums, so clear the quarantine flag that
+        # would otherwise stop macOS from running it.
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/zoneaudit"]
+          end
+
+scoops:
+  - name: zoneaudit
+    ids: [default]
+    repository:
+      owner: ZoneAudit
+      name: scoop-bucket
+      branch: main
+      token: '{{ envOrDefault "PACKAGES_TOKEN" "" }}'
+    homepage: "https://github.com/ZoneAudit/zoneaudit-cli"
+    description: "Read-only snapshot of a domain's public DNS, certificates, web banners and email security"
+    license: MIT
+    commit_author:
+      name: zoneaudit-release
+      email: security@cobrasphere.com
+    commit_msg_template: "zoneaudit {{ .Tag }}"
+    skip_upload: '{{ if eq (envOrDefault "PACKAGES_TOKEN" "") "" }}true{{ else }}false{{ end }}'
+
+release:
+  github:
+    owner: ZoneAudit
+    name: zoneaudit-cli
+  footer: |
+    ## Verify this release
+
+    `checksums.txt` is signed with [cosign](https://docs.sigstore.dev/) keyless signing from this repository's release workflow:
+
+    ```sh
+    cosign verify-blob \
+      --bundle checksums.txt.sigstore.json \
+      --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      checksums.txt
+    sha256sum --ignore-missing -c checksums.txt
+    ```
+
+    Each archive has an SPDX SBOM (`*.sbom.json`).
 
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ incpatch .Version }}-snapshot"
 
 changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
+      - "^docs:"
+      - "^test:"
