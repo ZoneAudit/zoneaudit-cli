@@ -66,7 +66,10 @@ try {
     $got = (& (Join-Path $bin 'zoneaudit.exe') -version | Out-String).Trim()
     Write-Host "installed: $got"
     if ($got -ne "zoneaudit $expected") { throw "FAIL: expected 'zoneaudit $expected'" }
-    $help = (& (Join-Path $bin 'zoneaudit.exe') -h 2>&1 | Out-String)
+    # Run through cmd so stderr is plain text: in Windows PowerShell 5.1,
+    # '2>&1' on a native command with ErrorActionPreference Stop throws.
+    $exe = Join-Path $bin 'zoneaudit.exe'
+    $help = (cmd /c "`"$exe`" -h 2>&1" | Out-String)
     if ($help -notmatch 'RESPONSIBLE USE') { throw 'FAIL: help lacks the responsible-use notice' }
   } else {
     Write-Host '== install the latest published release (irm | iex)'
