@@ -1,0 +1,5 @@
+HTTP/1.1 403 Forbidden
+Server: AmazonS3
+Content-Type: text/html
+
+<html><body>Forbidden</body></html>

@@ -2,120 +2,83 @@ package scanner
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"html"
-	"io"
-	"net"
-	"net/http"
-	"regexp"
+	"sort"
 	"strings"
-	"time"
 )
 
-// Record represents a simplified DNS or service record for the CLI output.
-type Record struct {
-	Type  string   `json:"type"`
-	Value []string `json:"value"`
-}
+// Record types reported in Result.Records.
+const (
+	RecordAddress = "A/AAAA"
+	RecordCNAME   = "CNAME"
+	RecordTXT     = "TXT"
+	RecordMX      = "MX"
+	RecordRisk    = "RISK"
 
-// Result represents the scanning outcome for a specific subdomain.
-type Result struct {
-	Subdomain string    `json:"subdomain"`
-	Records   []Record  `json:"records,omitempty"`
-	IsActive  bool      `json:"is_active"`
-	SSL       *SSLInfo  `json:"ssl,omitempty"`
-	HTTP      *HTTPInfo `json:"http,omitempty"`
-}
+	// RiskDanglingCNAME flags a CNAME whose target no longer resolves.
+	RiskDanglingCNAME = "DANGLING-CNAME"
+)
 
-// SSLInfo holds basic certificate details.
-type SSLInfo struct {
-	Issuer     string    `json:"issuer"`
-	Expiry     time.Time `json:"expiry"`
-	DaysLeft   int       `json:"days_left"`
-	IsCritical bool      `json:"is_critical"`
-}
+// CheckSubdomain performs the DNS lookups for one host and, when it has an
+// address, one TLS handshake and a light HTTP(S) request.
+func (s *Scanner) CheckSubdomain(ctx context.Context, fqdn string) Result {
+	res := Result{Subdomain: fqdn}
 
-// HTTPInfo holds basic web service metadata.
-type HTTPInfo struct {
-	Server string `json:"server,omitempty"`
-	Title  string `json:"title,omitempty"`
-	Status int    `json:"status"`
-}
-
-// CheckSubdomain performs DNS lookups and active service probing.
-func CheckSubdomain(ctx context.Context, fqdn string) Result {
-	res := Result{
-		Subdomain: fqdn,
-	}
-
-	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	resolver := &net.Resolver{}
-
-	// Check A/AAAA records
-	ips, err := resolver.LookupHost(lookupCtx, fqdn)
+	// A/AAAA records
+	ips, err := s.resolver.LookupHost(ctx, fqdn)
 	if err == nil && len(ips) > 0 {
 		res.IsActive = true
-		res.Records = append(res.Records, Record{
-			Type:  "A/AAAA",
-			Value: ips,
-		})
+		ips = append([]string(nil), ips...)
+		sort.Strings(ips)
+		res.Records = append(res.Records, Record{Type: RecordAddress, Value: ips})
 
-		// If IP exists, try a quick SSL check on 443
-		if ssl := checkSSL(fqdn); ssl != nil {
+		if ssl := s.checkSSL(ctx, fqdn); ssl != nil {
 			res.SSL = ssl
 		}
-
-		// Try HTTP(S) metadata extraction
-		if httpInfo := checkHTTP(fqdn); httpInfo != nil {
-			res.HTTP = httpInfo
+		if info := s.checkHTTP(ctx, fqdn); info != nil {
+			res.HTTP = info
 		}
 	}
 
-	// Check CNAME (spotting dangling assets)
-	cname, err := resolver.LookupCNAME(lookupCtx, fqdn)
-	if err == nil && cname != "" && strings.TrimSuffix(cname, ".") != strings.TrimSuffix(fqdn, ".") {
+	// CNAME, and the dangling CNAME check
+	cname, err := s.resolver.LookupCNAME(ctx, fqdn)
+	target := strings.TrimSuffix(cname, ".")
+	if err == nil && target != "" && !strings.EqualFold(target, strings.TrimSuffix(fqdn, ".")) {
 		res.IsActive = true
-		cnameClean := strings.TrimSuffix(cname, ".")
-		res.Records = append(res.Records, Record{
-			Type:  "CNAME",
-			Value: []string{cnameClean},
-		})
+		res.Records = append(res.Records, Record{Type: RecordCNAME, Value: []string{target}})
 
-		// Check for potentially orphaned CNAME (Dangling DNS)
-		// If the CNAME target doesn't resolve to any IPs, it's a "Dangling" risk
-		if _, err := resolver.LookupHost(lookupCtx, cnameClean); err != nil {
-			res.Records = append(res.Records, Record{
-				Type:  "RISK",
-				Value: []string{"DANGLING-CNAME"},
-			})
+		// A CNAME whose target does not resolve can be taken over by whoever
+		// registers or claims that target.
+		if addrs, err := s.resolver.LookupHost(ctx, target); err != nil || len(addrs) == 0 {
+			res.Records = append(res.Records, Record{Type: RecordRisk, Value: []string{RiskDanglingCNAME}})
 		}
 	}
 
-	// Check TXT records (for SPF, verification, etc.)
-	txts, err := resolver.LookupTXT(lookupCtx, fqdn)
+	// TXT records (SPF, site verification and so on)
+	txts, err := s.resolver.LookupTXT(ctx, fqdn)
 	if err == nil && len(txts) > 0 {
 		res.IsActive = true
-		res.Records = append(res.Records, Record{
-			Type:  "TXT",
-			Value: txts,
-		})
+		txts = append([]string(nil), txts...)
+		sort.Strings(txts)
+		res.Records = append(res.Records, Record{Type: RecordTXT, Value: txts})
 	}
 
-	// Check MX records (for mail infrastructure)
-	mxs, err := resolver.LookupMX(lookupCtx, fqdn)
+	// MX records (mail infrastructure)
+	mxs, err := s.resolver.LookupMX(ctx, fqdn)
 	if err == nil && len(mxs) > 0 {
 		res.IsActive = true
-		var values []string
-		for _, mx := range mxs {
-			values = append(values, fmt.Sprintf("%s (%d)", mx.Host, mx.Pref))
-		}
-		res.Records = append(res.Records, Record{
-			Type:  "MX",
-			Value: values,
+		sorted := append(mxs[:0:0], mxs...)
+		sort.SliceStable(sorted, func(i, j int) bool {
+			if sorted[i].Pref != sorted[j].Pref {
+				return sorted[i].Pref < sorted[j].Pref
+			}
+			return sorted[i].Host < sorted[j].Host
 		})
+		values := make([]string, 0, len(sorted))
+		for _, mx := range sorted {
+			values = append(values, fmt.Sprintf("%s (%d)", strings.TrimSuffix(mx.Host, "."), mx.Pref))
+		}
+		res.Records = append(res.Records, Record{Type: RecordMX, Value: values})
 	}
 
 	return res
@@ -127,103 +90,49 @@ type EmailSecurity struct {
 	SPF         bool   `json:"spf"`
 	DMARC       bool   `json:"dmarc"`
 	DMARCPolicy string `json:"dmarc_policy,omitempty"`
+	// DMARCWeak is true when a DMARC record exists but its policy is "none"
+	// (monitoring only), so spoofed email is not blocked.
+	DMARCWeak bool `json:"dmarc_weak"`
 }
 
 // CheckEmailSecurity looks up SPF on the domain and DMARC on _dmarc.<domain>.
-func CheckEmailSecurity(ctx context.Context, domain string) EmailSecurity {
+func (s *Scanner) CheckEmailSecurity(ctx context.Context, domain string) EmailSecurity {
+	txts, _ := s.resolver.LookupTXT(ctx, domain)
+	dmarc, _ := s.resolver.LookupTXT(ctx, "_dmarc."+domain)
+	return EvaluateEmailSecurity(txts, dmarc)
+}
+
+// EvaluateEmailSecurity interprets the root TXT records and the _dmarc TXT records.
+func EvaluateEmailSecurity(rootTXT, dmarcTXT []string) EmailSecurity {
 	var es EmailSecurity
-	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	r := net.DefaultResolver
-	txts, _ := r.LookupTXT(lookupCtx, domain)
-	for _, txt := range txts {
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(txt)), "v=spf1") {
+	for _, txt := range rootTXT {
+		if hasTag(txt, "v=spf1") {
 			es.SPF = true
 		}
 	}
-	dmarcTxts, _ := r.LookupTXT(lookupCtx, "_dmarc."+domain)
-	for _, txt := range dmarcTxts {
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(txt)), "v=dmarc1") {
-			es.DMARC = true
-			for _, part := range strings.Split(txt, ";") {
-				kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
-				if len(kv) == 2 && strings.EqualFold(kv[0], "p") {
-					es.DMARCPolicy = strings.ToLower(strings.TrimSpace(kv[1]))
-				}
+	for _, txt := range dmarcTXT {
+		if !hasTag(txt, "v=dmarc1") {
+			continue
+		}
+		es.DMARC = true
+		for _, part := range strings.Split(txt, ";") {
+			kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+			if len(kv) == 2 && strings.EqualFold(strings.TrimSpace(kv[0]), "p") {
+				es.DMARCPolicy = strings.ToLower(strings.TrimSpace(kv[1]))
 			}
 		}
 	}
+	es.DMARCWeak = es.DMARC && es.DMARCPolicy == "none"
 	return es
 }
 
-func checkSSL(fqdn string) *SSLInfo {
-	dialer := &net.Dialer{Timeout: 2 * time.Second}
-	conn, err := tls.DialWithDialer(dialer, "tcp", fqdn+":443", &tls.Config{
-		InsecureSkipVerify: true, // We want to see the cert even if it's expired/invalid
-	})
-	if err != nil {
-		return nil
+// hasTag reports whether a TXT record starts with the given version tag,
+// ignoring case and surrounding space.
+func hasTag(txt, tag string) bool {
+	t := strings.ToLower(strings.TrimSpace(txt))
+	if !strings.HasPrefix(t, tag) {
+		return false
 	}
-	defer conn.Close()
-
-	certs := conn.ConnectionState().PeerCertificates
-	if len(certs) == 0 {
-		return nil
-	}
-
-	leaf := certs[0]
-	daysLeft := int(time.Until(leaf.NotAfter).Hours() / 24)
-
-	return &SSLInfo{
-		Issuer:     leaf.Issuer.CommonName,
-		Expiry:     leaf.NotAfter,
-		DaysLeft:   daysLeft,
-		IsCritical: daysLeft < 30,
-	}
-}
-
-var titleRegex = regexp.MustCompile(`(?i)<title>(.*?)</title>`)
-
-func checkHTTP(fqdn string) *HTTPInfo {
-	// Try HTTPS first, then HTTP
-	protocols := []string{"https://", "http://"}
-	client := &http.Client{
-		Timeout: 3 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 3 {
-				return http.ErrUseLastResponse
-			}
-			return nil
-		},
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-
-	for _, proto := range protocols {
-		resp, err := client.Get(proto + fqdn)
-		if err != nil {
-			continue
-		}
-		defer resp.Body.Close()
-
-		info := &HTTPInfo{
-			Status: resp.StatusCode,
-			Server: resp.Header.Get("Server"),
-		}
-
-		// Read small chunk for title
-		body := make([]byte, 2048)
-		n, _ := io.ReadFull(resp.Body, body)
-		if n > 0 {
-			matches := titleRegex.FindStringSubmatch(string(body[:n]))
-			if len(matches) > 1 {
-				info.Title = strings.TrimSpace(html.UnescapeString(matches[1]))
-			}
-		}
-
-		return info
-	}
-
-	return nil
+	rest := t[len(tag):]
+	return rest == "" || rest[0] == ' ' || rest[0] == ';' || rest[0] == '\t'
 }
