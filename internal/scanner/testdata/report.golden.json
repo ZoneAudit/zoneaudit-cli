@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "tool": {
     "name": "zoneaudit-cli",
     "version": "0.0.0-test"
@@ -22,7 +22,9 @@
     "spf": true,
     "dmarc": true,
     "dmarc_policy": "none",
-    "dmarc_weak": true
+    "dmarc_weak": true,
+    "spf_status": "present",
+    "dmarc_status": "present"
   },
   "active": [
     {

@@ -1,4 +1,4 @@
-# JSON output (schema version 1.0)
+# JSON output (schema version 1.1)
 
 `zoneaudit -d <domain> -json` writes one JSON object to standard output. Progress and errors go to standard error, so the output can be piped straight into `jq` or another program.
 
@@ -16,7 +16,7 @@ Check the major number before reading a report, for example `jq -e '.schema_vers
 
 | Field | Type | Meaning |
 | :--- | :--- | :--- |
-| `schema_version` | string | Format version, currently `"1.0"` |
+| `schema_version` | string | Format version, currently `"1.1"` |
 | `tool.name` | string | Always `"zoneaudit-cli"` |
 | `tool.version` | string | CLI version, for example `"0.3.0"` |
 | `domain` | string | The domain scanned, lower-cased |
@@ -30,10 +30,12 @@ Check the major number before reading a report, for example `jq -e '.schema_vers
 | `domain_expiry.expiry_date` | string | RFC 3339, UTC |
 | `domain_expiry.days_left` | integer | Whole days until expiry; negative once expired |
 | `domain_expiry.is_critical` | boolean | `days_left` is below 30 |
-| `email_security.spf` | boolean | The domain has a TXT record starting `v=spf1` |
-| `email_security.dmarc` | boolean | `_dmarc.<domain>` has a TXT record starting `v=DMARC1` |
+| `email_security.spf` | boolean | A TXT record starting `v=spf1` was found. `false` does not mean missing when `spf_status` is `unavailable` |
+| `email_security.dmarc` | boolean | A TXT record starting `v=DMARC1` was found at `_dmarc.<domain>`. `false` does not mean missing when `dmarc_status` is `unavailable` |
 | `email_security.dmarc_policy` | string, optional | The DMARC `p=` value, lower-cased (`none`, `quarantine` or `reject`) |
 | `email_security.dmarc_weak` | boolean | DMARC exists but `p=none`, so spoofed email is not blocked |
+| `email_security.spf_status` | string | `present`, `missing` (the DNS answered with no SPF record) or `unavailable` (the lookup failed, for example a timeout or SERVFAIL, so SPF may still exist). Since 1.1 |
+| `email_security.dmarc_status` | string | Same values, for DMARC. Since 1.1 |
 | `active` | array | One entry per host that has any record; the domain first, then sorted by name |
 | `total_scanned` | integer | Number of wordlist names tried under the domain (the domain itself is checked as well) |
 | `version` | string | Same as `tool.version`; kept for reports made by v0.2 |
@@ -65,9 +67,17 @@ Each record has a `type` and a `value` array of strings.
 | `CNAME` | The CNAME target, without the trailing dot |
 | `TXT` | TXT strings, sorted |
 | `MX` | `"<host> (<preference>)"`, sorted by preference |
-| `RISK` | `["DANGLING-CNAME"]`: the CNAME target does not resolve; whoever can claim that name may be able to serve content on this host |
+| `RISK` | `["DANGLING-CNAME"]`: the DNS answered that the CNAME target does not exist or has no addresses; whoever can claim that name may be able to serve content on this host |
+| `UNCHECKED` | `["DANGLING-CNAME"]`: the lookup of the CNAME target failed (timeout, SERVFAIL or cancellation), so whether the CNAME is dangling is undetermined. Since 1.1 |
 
 New record types or risk flags may be added in a minor version.
+
+## History
+
+| Version | Change |
+| :--- | :--- |
+| 1.0 | First documented format |
+| 1.1 | Adds `email_security.spf_status`, `email_security.dmarc_status` and the `UNCHECKED` record type, so a failed lookup is no longer reported as a missing record or a dangling CNAME |
 
 ## Example
 

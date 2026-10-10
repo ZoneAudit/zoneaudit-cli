@@ -17,9 +17,11 @@ et ce projet adhère au [Versionnement Sémantique](https://semver.org/spec/v2.0
 - **Analyse courtoise** : `-rate` plafonne les requêtes par seconde, DNS, TLS, HTTP et RDAP confondus (25 par défaut, 100 au maximum), et `-timeout` borne chaque requête (5 s par défaut). Les requêtes s'identifient avec un User-Agent `zoneaudit-cli/<version>`.
 - **Versions signées** : `checksums.txt` est signé avec la signature sans clé de cosign (OIDC GitHub, aucune clé stockée) et chaque archive a une nomenclature SPDX.
 - **Paquets** : le workflow de publication génère un cask Homebrew et un manifeste Scoop, et les publie dès que les dépôts du tap et du bucket existent.
-- **Sortie JSON stable** avec un champ `schema_version` (`"1.0"`), documentée dans `docs/json-output.md` ; le rapport indique aussi l'heure, la durée, les limites utilisées et le nombre de requêtes.
+- **Sortie JSON stable** avec un champ `schema_version` (`"1.1"`), documentée dans `docs/json-output.md` ; le rapport indique aussi l'heure, la durée, les limites utilisées et le nombre de requêtes.
 - `SECURITY.md`, `CONTRIBUTING.md` et un exemple de rapport dans le README.
 - Option `-version`.
+- Une analyse interrompue (Ctrl+C) écrit tout de même le rapport partiel, puis se termine avec le code 130.
+- Un échec de requête DNS est signalé comme tel : SPF et DMARC indiquent `unavailable` (et non absent, sans avertissement d'usurpation), et un CNAME dont la cible n'a pas pu être résolue est marqué `UNCHECKED` plutôt que pendant.
 
 ### Changé
 - `--help` commence par l'avertissement d'utilisation responsable.
@@ -32,6 +34,8 @@ et ce projet adhère au [Versionnement Sémantique](https://semver.org/spec/v2.0
 ### Corrigé
 - Le workflow de publication installe Go avec `actions/setup-go` (il exécutait `actions/checkout` deux fois).
 - Les requêtes RDAP vérifient le certificat du serveur.
+- Les jours restants d'un certificat ou d'un domaine expiré sont arrondis vers le bas : une expiration de moins d'un jour donne -1, et non 0.
+- Le délai d'attente HTTP par requête démarre après l'attente du limiteur de débit, de sorte que les requêtes en file à faible `-rate` n'expirent plus avant d'être envoyées.
 - Un préfixe proche de `v=spf1`, comme `v=spf10`, n'est plus compté comme SPF.
 
 ## [0.2.0] - 2026-06-03

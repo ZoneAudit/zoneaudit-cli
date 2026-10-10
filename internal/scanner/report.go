@@ -6,7 +6,7 @@ import "time"
 // version 1, fields are never removed, renamed or given a new meaning; new
 // optional fields may be added, which raises the minor number. See
 // docs/json-output.md.
-const SchemaVersion = "1.0"
+const SchemaVersion = "1.1"
 
 // ToolName is the name reported in the JSON output.
 const ToolName = "zoneaudit-cli"

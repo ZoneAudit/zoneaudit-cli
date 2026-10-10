@@ -54,6 +54,11 @@ func TestParseRDAPExpiry(t *testing.T) {
 		t.Errorf("date without a zone: %+v, %v", exp, err)
 	}
 
+	exp, err = scanner.ParseRDAPExpiry([]byte(`{"events":[{"eventAction":"expiration","eventDate":"2026-10-09T11:59:59Z"}]}`), now)
+	if err != nil || exp.DaysLeft != -1 {
+		t.Errorf("expired a second ago: %+v, %v; want -1 days", exp, err)
+	}
+
 	if _, err := scanner.ParseRDAPExpiry([]byte(`{"events":[{"eventAction":"registration","eventDate":"2000-01-01T00:00:00Z"}]}`), now); !errors.Is(err, scanner.ErrNoExpiry) {
 		t.Errorf("missing expiration: err = %v, want ErrNoExpiry", err)
 	}

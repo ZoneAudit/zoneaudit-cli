@@ -58,6 +58,11 @@ type Resolver struct {
 	} `json:"mx"`
 	NS map[string][]string `json:"ns"`
 
+	// Errors forces a lookup to fail. Keys are "<type> <name>", for example
+	// "host gone.example.net" or "txt _dmarc.example.com"; types are host,
+	// cname, txt, mx and ns.
+	Errors map[string]error `json:"-"`
+
 	mu        sync.Mutex
 	Calls     int
 	Deadlines []time.Duration // time left on each lookup's context
@@ -72,21 +77,37 @@ func LoadResolver(name string) *Resolver {
 	return r
 }
 
-func (r *Resolver) record(ctx context.Context) error {
+func (r *Resolver) record(ctx context.Context, typ, name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.Calls++
 	if dl, ok := ctx.Deadline(); ok {
 		r.Deadlines = append(r.Deadlines, time.Until(dl))
 	}
-	return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return r.Errors[typ+" "+key(name)]
 }
+
+// ServFail is the error the Go resolver returns for a SERVFAIL answer.
+func ServFail(name string) error {
+	return &net.DNSError{Err: "server misbehaving", Name: name, IsTemporary: true}
+}
+
+// Timeout is the error the Go resolver returns when a lookup times out.
+func Timeout(name string) error {
+	return &net.DNSError{Err: "i/o timeout", Name: name, IsTimeout: true, IsTemporary: true}
+}
+
+// NotFound is the error the Go resolver returns for NXDOMAIN or no records.
+func NotFound(name string) error { return notFound(name) }
 
 func key(name string) string { return strings.ToLower(strings.TrimSuffix(name, ".")) }
 
 // LookupHost returns the recorded addresses.
 func (r *Resolver) LookupHost(ctx context.Context, host string) ([]string, error) {
-	if err := r.record(ctx); err != nil {
+	if err := r.record(ctx, "host", host); err != nil {
 		return nil, err
 	}
 	if v, ok := r.Host[key(host)]; ok {
@@ -98,7 +119,7 @@ func (r *Resolver) LookupHost(ctx context.Context, host string) ([]string, error
 // LookupCNAME behaves like the Go resolver: a name with addresses but no
 // CNAME returns itself as the canonical name.
 func (r *Resolver) LookupCNAME(ctx context.Context, host string) (string, error) {
-	if err := r.record(ctx); err != nil {
+	if err := r.record(ctx, "cname", host); err != nil {
 		return "", err
 	}
 	if v, ok := r.CNAME[key(host)]; ok {
@@ -112,7 +133,7 @@ func (r *Resolver) LookupCNAME(ctx context.Context, host string) (string, error)
 
 // LookupTXT returns the recorded TXT strings.
 func (r *Resolver) LookupTXT(ctx context.Context, name string) ([]string, error) {
-	if err := r.record(ctx); err != nil {
+	if err := r.record(ctx, "txt", name); err != nil {
 		return nil, err
 	}
 	if v, ok := r.TXT[key(name)]; ok {
@@ -123,7 +144,7 @@ func (r *Resolver) LookupTXT(ctx context.Context, name string) ([]string, error)
 
 // LookupMX returns the recorded MX records.
 func (r *Resolver) LookupMX(ctx context.Context, name string) ([]*net.MX, error) {
-	if err := r.record(ctx); err != nil {
+	if err := r.record(ctx, "mx", name); err != nil {
 		return nil, err
 	}
 	v, ok := r.MX[key(name)]
@@ -139,7 +160,7 @@ func (r *Resolver) LookupMX(ctx context.Context, name string) ([]*net.MX, error)
 
 // LookupNS returns the recorded NS records.
 func (r *Resolver) LookupNS(ctx context.Context, name string) ([]*net.NS, error) {
-	if err := r.record(ctx); err != nil {
+	if err := r.record(ctx, "ns", name); err != nil {
 		return nil, err
 	}
 	v, ok := r.NS[key(name)]

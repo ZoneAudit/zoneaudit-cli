@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"io"
 	"net"
 	"net/http"
 	"sync"
@@ -138,21 +139,42 @@ func (r *limitedResolver) LookupNS(ctx context.Context, name string) ([]*net.NS,
 	return r.base.LookupNS(c, name)
 }
 
-// limitedTransport rate limits every HTTP request, including redirects.
+// limitedTransport rate limits every HTTP request, including redirects,
+// and gives each one its own timeout that starts after the limiter's wait.
 type limitedTransport struct {
 	base    http.RoundTripper
 	limiter *Limiter
+	timeout time.Duration
 }
 
 func (t *limitedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err := t.limiter.Wait(req.Context()); err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(req.Context(), t.timeout)
+	req = req.Clone(ctx)
 	if req.Header.Get("User-Agent") == "" {
-		req = req.Clone(req.Context())
 		req.Header.Set("User-Agent", UserAgent())
 	}
-	return t.base.RoundTrip(req)
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	// The timeout also covers reading the body; release it on Close.
+	resp.Body = &cancelOnClose{ReadCloser: resp.Body, cancel: cancel}
+	return resp, nil
+}
+
+type cancelOnClose struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (c *cancelOnClose) Close() error {
+	err := c.ReadCloser.Close()
+	c.cancel()
+	return err
 }
 
 // limitedCertFetcher rate limits and times out each TLS handshake.
