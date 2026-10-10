@@ -15,5 +15,6 @@
 # vendor/
 
 # Project-specific binaries
-zoneaudit
+/zoneaudit
+/zoneaudit-ci
 dist/

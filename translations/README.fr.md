@@ -1,63 +1,138 @@
 # ZoneAudit™ Community Edition
 
+[![ci](https://github.com/ZoneAudit/zoneaudit-cli/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ZoneAudit/zoneaudit-cli/actions/workflows/ci.yml?query=branch%3Amain)
+[![MIT licence](https://img.shields.io/badge/licence-MIT-blue.svg)](../LICENSE)
+
 > **Langues :** [English](README.en.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
 
-**Découverte rapide et en lecture seule de l'empreinte publique d'un domaine : sous-domaines, DNS, certificats, expiration du domaine et sécurité e-mail.**
+**Découverte en lecture seule de l'empreinte publique d'un domaine : sous-domaines, DNS, certificats, expiration du domaine et sécurité e-mail.**
 
-La ZoneAudit™ Community Edition est conçue pour la cartographie rapide des sous-domaines de haute valeur et la validation DNS active. Elle gère le travail lourd de sondage réseau en découvrant les points d'entrée critiques, en validant la résolution DNS active et en exécutant des heuristiques ciblées pour repérer les risques tels que les CNAME pendants et les infrastructures orphelines avant que les attaquants ne le fassent.
+ZoneAudit Community Edition vérifie un domaine et 143 noms d'hôtes courants sous ce domaine. Pour chaque hôte existant, elle indique les enregistrements DNS, signale un CNAME dont la cible ne se résout plus (CNAME pendant), lit la date d'expiration et l'émetteur du certificat, et relève la bannière du serveur web et le titre de la page. Pour le domaine lui-même, elle lit la date d'expiration de l'enregistrement via RDAP et vérifie SPF et DMARC, avec un avertissement lorsque DMARC est en `p=none`.
 
----
-
-## Architecture : de la télémétrie brute à la clarté opérationnelle
-
-```mermaid
-architecture-beta
-    group user(logos:go)[ZoneAudit CLI]
-
-    service rdap(logos:internet-computer)[Expiration RDAP] in user
-    service dns(logos:google-cloud-dns)[Sondage DNS] in user
-    service http(logos:apache-http-server)[Bannières HTTP] in user
-    service ssl(logos:lets-encrypt)[Validation SSL] in user
-
-    junction pipeline
-
-    rdap:B -- T:pipeline
-    dns:B -- T:pipeline
-    http:B -- T:pipeline
-    ssl:B -- T:pipeline
-
-    group engine(logos:google-cloud-functions)[Moteur d'IA ZoneAudit]
-    service report(logos:googledrive-sheets)[Aperçus Intelligents] in engine
-
-    pipeline:B --> T:report{group}
-```
-
-Cet utilitaire est conçu pour fonctionner comme un agent indépendant pour le pipeline de données ZoneAudit.
-
-1. **L'édition communautaire (Ce repo) :** Effectue des requêtes concurrentes et fournit des résultats bruts (DNS, SSL, RDAP, HTTP) au format texte ou JSON.
-2. **La plateforme ZoneAudit :** Traite la télémétrie via un moteur d'IA asynchrone pour générer des rapports **DeepScan Intelligent Insight™** qu'un dirigeant peut lire et exploiter en quelques minutes.
+Le CLI affiche des résultats bruts, en lecture seule ; le service ZoneAudit en fait un rapport hiérarchisé et étayé de preuves.
 
 ---
 
 ## Utilisation responsable
 
-Analysez uniquement les domaines dont vous êtes propriétaire ou que vous êtes autorisé à évaluer. ZoneAudit Community Edition résout les enregistrements DNS et effectue une seule requête HTTP(S) légère et une négociation TLS vers chaque hôte découvert ; il ne scanne pas les ports et ne tente aucun accès.
+**Analysez uniquement les domaines dont vous êtes propriétaire ou que vous êtes autorisé à évaluer.**
 
-## Mise en route
+Pour chaque hôte trouvé, ZoneAudit résout les enregistrements DNS, effectue une négociation TLS et une requête HTTP(S) légère (en HTTP simple uniquement si HTTPS ne répond pas, avec au plus 2 redirections). Il effectue aussi une requête RDAP pour la date d'expiration du domaine. Il ne scanne pas les ports et ne tente aucun accès.
 
-### Capacités (v0.2.0)
+Chaque requête (chaque résolution DNS, négociation TLS, requête HTTP et la requête RDAP) passe par une même limite de débit, 25 requêtes par seconde par défaut (`-rate`, 100 au maximum), et a son propre délai d'attente, 5 secondes par défaut (`-timeout`). Le même avertissement figure en tête de `zoneaudit --help`.
 
-- **Intelligence de domaine** : Alertes d'expiration de domaine pilotées par RDAP.
-- **Découverte de sous-domaines** : 143 noms d'hôtes d'infrastructure courants vérifiés.
-- **Empreinte de service** : Extraction de bannières HTTP et de titres de page.
-- **Validation de sécurité** : Vérification de l'expiration des certificats SSL/TLS et de l'émetteur.
-- **Multilingue** : Prise en charge complète de la sortie pour l'anglais, le français et l'allemand.
+## Installation
 
-Consultez le [CHANGELOG.fr.md](CHANGELOG.fr.md) pour la liste complète des changements.
+Avec [Go](https://go.dev/dl/) 1.22 ou ultérieur :
 
-### Langues supportées
+```bash
+go install github.com/ZoneAudit/zoneaudit-cli/cmd/zoneaudit@latest
+```
 
-Le CLI prend en charge les langues suivantes. Notez que les traductions sont fournies à titre de commodité et peuvent varier en nuance technique.
+Ou téléchargez une archive pour Linux, macOS ou Windows (amd64 ou arm64) depuis la [page des versions](https://github.com/ZoneAudit/zoneaudit-cli/releases).
+
+### Vérifier une version
+
+À partir de la v0.3.0, `checksums.txt` est signé avec la signature sans clé de [cosign](https://docs.sigstore.dev/) par le workflow de publication de ce dépôt, et chaque archive est accompagnée d'une nomenclature logicielle SPDX (`*.sbom.json`). Pour vérifier un téléchargement :
+
+```bash
+cosign verify-blob \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+sha256sum --ignore-missing -c checksums.txt
+```
+
+## Utilisation
+
+```bash
+zoneaudit -d example.com
+```
+
+| Option | Défaut | Signification |
+| :--- | :--- | :--- |
+| `-d` | | Domaine à analyser |
+| `-c` | 10 | Tâches parallèles (1 à 50) |
+| `-rate` | 25 | Nombre maximal de requêtes par seconde, DNS, TLS, HTTP et RDAP confondus (1 à 100) |
+| `-timeout` | 5s | Délai d'attente de chaque requête (1s à 60s) |
+| `-json` | non | Rapport JSON au lieu du texte |
+| `-lang` | `LANG` | Langue de sortie : `en`, `fr` ou `de` |
+| `-version` | | Affiche la version |
+
+### Exemple de rapport
+
+```text
+$ zoneaudit -d example.com
+Starting ZoneAudit scan for: example.com
+Workers: 10 | Wordlist: 143 common hostnames
+Note: Alternative languages available via -lang [fr|de]
+
+[*] Domain Expiring in 307 days (2027-08-13)
+
+[+] example.com               | A/AAAA: 23.192.228.80   | HTTP:200 (ECS (nyd/D10E)) [Example Domain & Co] | TXT: google-site-verification=abc123 | MX: mx1.example.com (10) | SSL: OK (60 days left)
+[+] mail.example.com          | TXT: v=spf1 -all     | MX: mx1.example.com (10)
+[+] old.example.com           | CNAME: example-old.herokudns.example.org | RISK: DANGLING-CNAME
+[+] shop.example.com          | A/AAAA: 192.0.2.10      | HTTP:403 (AmazonS3) | CNAME: shop.provider.example.net
+[+] www.example.com           | A/AAAA: 23.192.228.84   | HTTP:200 (ECS (nyd/D10E)) [Example Domain & Co] | SSL: EXPIRING SOON (10 days left)
+
+[*] Email security: SPF present | DMARC present (p=none)
+[!] DMARC policy is 'none' (monitoring only): spoofed email is not blocked.
+
+------------------------------------------------------------
+ZoneAudit Community Edition v0.3.0
+Scan complete for example.com
+Duration: 0s | Active assets: 5
+------------------------------------------------------------
+For the full ZoneAudit review, request access at https://zoneaudit.com/?utm_source=cli
+```
+
+Voici la sortie du CLI sur ses données de test : les données RDAP de `example.com` sont une réponse enregistrée, tandis que les autres hôtes, enregistrements et certificats sont inventés pour montrer chaque type de résultat, et l'horloge est figée (d'où `Duration: 0s`). Une analyse réelle de 143 noms d'hôtes au débit par défaut prend environ 30 secondes. Avec `-lang fr`, la sortie est en français.
+
+### Sortie JSON
+
+```bash
+zoneaudit -d example.com -json
+```
+
+Le rapport JSON comporte un champ `schema_version` (actuellement `"1.1"`). Au sein de la version majeure 1, aucun champ n'est supprimé, renommé ni ne change de sens ; de nouveaux champs facultatifs peuvent être ajoutés, ce qui augmente le numéro mineur. Le format est décrit dans [docs/json-output.md](../docs/json-output.md) (en anglais).
+
+Un rapport abrégé issu des mêmes données de test :
+
+```json
+{
+  "schema_version": "1.1",
+  "tool": { "name": "zoneaudit-cli", "version": "0.3.0" },
+  "domain": "example.com",
+  "generated_at": "2026-10-09T12:00:00Z",
+  "duration_ms": 0,
+  "settings": { "concurrency": 10, "rate_per_second": 25, "timeout_seconds": 5 },
+  "requests": 590,
+  "domain_expiry": { "expiry_date": "2027-08-13T04:00:00Z", "days_left": 307, "is_critical": false },
+  "email_security": { "spf": true, "dmarc": true, "dmarc_policy": "none", "dmarc_weak": true, "spf_status": "present", "dmarc_status": "present" },
+  "active": [
+    {
+      "subdomain": "old.example.com",
+      "records": [
+        { "type": "CNAME", "value": ["example-old.herokudns.example.org"] },
+        { "type": "RISK", "value": ["DANGLING-CNAME"] }
+      ],
+      "is_active": true
+    },
+    {
+      "subdomain": "www.example.com",
+      "records": [{ "type": "A/AAAA", "value": ["23.192.228.84"] }],
+      "is_active": true,
+      "ssl": { "issuer": "Let's Encrypt", "expiry": "2026-10-19T13:00:00Z", "days_left": 10, "is_critical": true },
+      "http": { "server": "ECS (nyd/D10E)", "title": "Example Domain & Co", "status": 200 }
+    }
+  ],
+  "total_scanned": 143,
+  "version": "0.3.0"
+}
+```
+
+### Langues
 
 | Langue | Code | Activation | Documentation |
 | :--- | :--- | :--- | :--- |
@@ -65,81 +140,39 @@ Le CLI prend en charge les langues suivantes. Notez que les traductions sont fou
 | Français | `fr` | `-lang fr` ou `LANG=fr` | [README.fr.md](README.fr.md) |
 | Deutsch | `de` | `-lang de` ou `LANG=de` | [README.de.md](README.de.md) |
 
-#### Configuration de la variable d'environnement de langue
-
-Vous pouvez définir la variable d'environnement `LANG` dans votre session de terminal pour changer la langue de sortie. Sur Linux ou macOS :
+Les traductions sont fournies à titre de commodité et peuvent varier en nuance technique.
 
 ```bash
 LANG=fr zoneaudit -d example.com
+zoneaudit -d example.com -lang de
 ```
 
-Alternativement, vous pouvez utiliser le drapeau intégré :
-
-```bash
-zoneaudit -d example.com -lang fr
-```
-
-Assurez-vous d'avoir [Go](https://go.dev/dl/) installé sur votre système.
-
-```bash
-go install github.com/ZoneAudit/zoneaudit-cli/cmd/zoneaudit@latest
-```
-
-### Utilisation
-
-Scannez n'importe quel domaine pour révéler les sous-domaines actifs et l'exposition DNS :
-
-```bash
-zoneaudit -d example.com
-```
-
-Sortie au format JSON pour l'intégration de pipeline :
-
-```bash
-zoneaudit -d example.com -json
-```
+Consultez le [CHANGELOG.fr.md](CHANGELOG.fr.md) pour les changements de chaque version.
 
 ---
 
-## Feuille de route et futur de la communauté
+## Feuille de route
 
-La **ZoneAudit™ Community Edition** est le point d'entrée léger et open-source de notre écosystème. Bien que l'accent actuel soit mis sur la télémétrie de sous-domaines, DNS et TLS, nous évaluons les capacités suivantes pour les versions futures :
-
-- **Sondage protocolaire amélioré** : Heuristiques natives de poignée de main SMTP, FTP et SSH pour identifier les services hérités exposés.
-- **Analyse des en-têtes** : Inspection passive des en-têtes de sécurité (HSTS, CSP, X-Frame-Options) lors de la validation HTTP(S).
-- **Persistance locale** : Prise en charge du stockage SQLite local pour suivre les changements historiques d'une surface d'attaque au fil du temps.
-
-Nous apprécions vos commentaires sur les fonctionnalités qui aideraient le plus vos flux de travail de sécurité.
+Nous envisageons une inspection passive des en-têtes de sécurité (HSTS, CSP, X-Frame-Options) lors de la requête HTTP(S) que le CLI effectue déjà. Vos retours sur ce qui vous aiderait sont les bienvenus dans les [issues](https://github.com/ZoneAudit/zoneaudit-cli/issues).
 
 ---
 
-## Des résultats à une revue de conformité
+## Des résultats au rapport
 
-Cet outil CLI collecte les résultats bruts. Une revue ZoneAudit les transforme en un rapport hiérarchisé avec les corrections, y compris la préparation au niveau 0 du DCC pour les fournisseurs du ministère de la Défense britannique.
+Ce CLI collecte les résultats bruts. Le service ZoneAudit en fait un rapport hiérarchisé et étayé de preuves, y compris le niveau 0 du DCC pour les fournisseurs du ministère britannique de la Défense.
 
-[Demander une revue ZoneAudit](https://zoneaudit.com?utm_source=github&utm_medium=readme&utm_campaign=community_edition_fr)
+[Demander un accès sur zoneaudit.com](https://zoneaudit.com/?utm_source=github&utm_medium=readme&utm_campaign=community_edition_fr)
 
 ---
 
-## Communauté et gouvernance
+## Communauté
 
-### Signaler des bogues et poser des questions
-
-Si vous avez une idée, trouvez un bogue ou avez simplement une question sur l'outil, veuillez [ouvrir un ticket GitHub](https://github.com/ZoneAudit/zoneaudit-cli/issues). Nous ferons de notre mieux pour vous aider.
-
-### Contribuer
-
-Nous sommes heureux de voir des contributions de la communauté. Si vous voulez aider :
-
-1. Forkez le repo.
-2. Créez votre branche (`git checkout -b feature/votre-feature`).
-3. Validez vos changements.
-4. Ouvrez une pull request.
-
-Gardez un œil sur le style existant et assurez-vous que toute nouvelle logique est testée.
+- **Bogues et questions :** [ouvrez une issue GitHub](https://github.com/ZoneAudit/zoneaudit-cli/issues).
+- **Vulnérabilités de sécurité :** n'ouvrez pas d'issue publique ; consultez [SECURITY.md](../SECURITY.md).
+- **Contribuer :** consultez [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ### Licence
 
-Ce projet est sous licence **MIT**. Voir le fichier [LICENSE](../LICENSE) pour le texte complet.
+Ce projet est sous **licence MIT**. Consultez le fichier [LICENSE](../LICENSE) pour le texte complet.
 
-### 🇬🇧 Conçu au Royaume-Uni par [CobraSphere](https://cobrasphere.com?utm_source=github&utm_medium=readme&utm_campaign=community_edition_fr)
+Conçu au Royaume-Uni par [CobraSphere](https://cobrasphere.com?utm_source=github&utm_medium=readme&utm_campaign=community_edition_fr).
