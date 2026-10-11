@@ -1,0 +1,104 @@
+package scanner_test
+
+import (
+	"context"
+	"net"
+	"testing"
+
+	"github.com/ZoneAudit/zoneaudit-cli/internal/scanner"
+	"github.com/ZoneAudit/zoneaudit-cli/internal/scannertest"
+)
+
+func TestRedirectOutsideScopeIsNotFollowed(t *testing.T) {
+	targets := []string{
+		"https://attacker.example.net/",            // another domain
+		"https://notexample.com/",                  // suffix, not a subdomain
+		"http://localhost/",                        // loopback name
+		"http://127.0.0.1/",                        // loopback address
+		"http://169.254.169.254/latest/meta-data/", // cloud metadata (link-local)
+		"http://[::1]/",                            // IPv6 loopback
+		"https://internal.example.com/",            // in scope, but resolves to a private address
+		"https://linklocal.example.com/",           // in scope, but resolves to a link-local address
+		"https://example.com:8443/",                // another port
+		"ftp://example.com/",                       // another scheme
+		"https://unresolvable.example.com/",        // in scope, but does not resolve
+	}
+	for _, target := range targets {
+		t.Run(target, func(t *testing.T) {
+			f := newFixture(t, nil)
+			f.resolver.Host["internal.example.com"] = []string{"10.0.0.5"}
+			f.resolver.Host["linklocal.example.com"] = []string{"23.192.228.90", "169.254.169.254"}
+			f.transport.Routes["https://example.com"] = scannertest.RawResponse(302, map[string]string{"Location": target}, "")
+			ctx := scanner.WithScope(context.Background(), "example.com")
+			res := f.s.CheckSubdomain(ctx, "example.com")
+			if res.HTTP == nil || res.HTTP.Status != 302 {
+				t.Fatalf("got %+v, want the 302 response reported, not followed", res.HTTP)
+			}
+			if n := len(f.transport.Requests); n != 1 {
+				t.Errorf("made %d HTTP requests, want 1 (the redirect must not be followed)", n)
+			}
+		})
+	}
+}
+
+func TestRedirectWithinScopeIsFollowed(t *testing.T) {
+	f := newFixture(t, nil)
+	f.resolver.Host["app.example.com"] = []string{"23.192.228.85"}
+	f.transport.Routes["https://example.com"] = scannertest.RawResponse(302, map[string]string{"Location": "https://app.example.com/"}, "")
+	f.transport.Routes["https://app.example.com/"] = scannertest.RawResponse(200, nil, "<title>App</title>")
+	ctx := scanner.WithScope(context.Background(), "example.com")
+	res := f.s.CheckSubdomain(ctx, "example.com")
+	if res.HTTP == nil || res.HTTP.Status != 200 || res.HTTP.Title != "App" {
+		t.Errorf("got %+v, want the subdomain's page", res.HTTP)
+	}
+}
+
+func TestRunScanScopesRedirectsToTheDomain(t *testing.T) {
+	// www.example.com redirects to example.com, which is inside the scan.
+	f := newFixture(t, func(c *scanner.Config) { c.Wordlist = []string{"www"} })
+	res := f.s.RunScan(context.Background(), "example.com", nil)
+	for _, r := range res.Active {
+		if r.Subdomain == "www.example.com" && (r.HTTP == nil || r.HTTP.Status != 200) {
+			t.Errorf("in-scope redirect not followed during a scan: %+v", r.HTTP)
+		}
+	}
+}
+
+func TestInScope(t *testing.T) {
+	cases := map[[2]string]bool{
+		{"example.com", "example.com"}:      true,
+		{"a.b.example.com.", "example.com"}: true,
+		{"WWW.Example.COM", "example.com"}:  true,
+		{"notexample.com", "example.com"}:   false,
+		{"example.com.evil", "example.com"}: false,
+		{"example.com", ""}:                 false,
+	}
+	for in, want := range cases {
+		if got := scanner.InScope(in[0], in[1]); got != want {
+			t.Errorf("InScope(%q, %q) = %v, want %v", in[0], in[1], got, want)
+		}
+	}
+}
+
+func TestIsPublicIP(t *testing.T) {
+	cases := map[string]bool{
+		"23.192.228.80":   true,
+		"2600:1406::1":    true,
+		"127.0.0.1":       false,
+		"10.1.2.3":        false,
+		"172.16.0.1":      false,
+		"192.168.1.1":     false,
+		"169.254.169.254": false,
+		"100.64.0.1":      false,
+		"0.0.0.0":         false,
+		"::1":             false,
+		"fe80::1":         false,
+		"fd00::1":         false,
+		"224.0.0.1":       false,
+	}
+	for in, want := range cases {
+		if got := scanner.IsPublicIP(net.ParseIP(in)); got != want {
+			t.Errorf("IsPublicIP(%s) = %v, want %v", in, got, want)
+		}
+	}
+}

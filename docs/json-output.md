@@ -37,7 +37,7 @@ Check the major number before reading a report, for example `jq -e '.schema_vers
 | `email_security.spf_status` | string | `present`, `missing` (the DNS answered with no SPF record) or `unavailable` (the lookup failed, for example a timeout or SERVFAIL, so SPF may still exist). Since 1.1 |
 | `email_security.dmarc_status` | string | Same values, for DMARC. Since 1.1 |
 | `active` | array | One entry per host that has any record; the domain first, then sorted by name |
-| `total_scanned` | integer | Number of wordlist names tried under the domain (the domain itself is checked as well) |
+| `total_scanned` | integer | Number of wordlist names tried under the domain (the domain itself is checked as well). In an interrupted scan this counts only the names tried before the interruption |
 | `version` | string | Same as `tool.version`; kept for reports made by v0.2 |
 
 ## Host entries (`active[]`)
@@ -53,7 +53,7 @@ Check the major number before reading a report, for example `jq -e '.schema_vers
 | `ssl.days_left` | integer | Whole days until expiry; negative once expired |
 | `ssl.is_critical` | boolean | `days_left` is below 30 |
 | `http` | object, optional | Present when an HTTP(S) request got a response |
-| `http.status` | integer | Final status code (after at most 2 redirects) |
+| `http.status` | integer | Final status code (after at most 2 redirects within the scanned domain; a redirect elsewhere, or to a private, loopback or link-local address, is not followed and its 3xx status is reported) |
 | `http.server` | string, optional | `Server` response header |
 | `http.title` | string, optional | Page title, HTML entities decoded |
 

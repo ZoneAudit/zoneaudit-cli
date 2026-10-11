@@ -14,18 +14,12 @@ import (
 	"os/signal"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/ZoneAudit/zoneaudit-cli/internal/i18n"
 	"github.com/ZoneAudit/zoneaudit-cli/internal/scanner"
 )
-
-// responsibleUse is printed at the top of --help and when no domain is given.
-const responsibleUse = `RESPONSIBLE USE: only scan domains you own or are authorised to assess.
-For each host it finds, ZoneAudit resolves DNS records, makes one TLS
-handshake and one light HTTP(S) request (plain HTTP only if HTTPS does not
-answer, following at most 2 redirects). It also makes one RDAP query for the
-domain's expiry date. It does not scan ports or attempt access. All requests
-are capped by -rate and each one is bounded by -timeout.`
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -43,7 +37,39 @@ type options struct {
 	version     bool
 }
 
-func newFlagSet(stderr io.Writer, o *options) *flag.FlagSet {
+// stringsFor returns the terminal strings for lang, or for the LANG
+// environment variable when lang is empty or not supported.
+func stringsFor(lang string) i18n.LanguageStrings {
+	if lang != "" && i18n.Supported(lang) {
+		return i18n.For(lang)
+	}
+	return i18n.GetStrings()
+}
+
+// langArg finds the -lang value in args before they are parsed, so that
+// --help, which the flag package handles during parsing, is printed in the
+// requested language wherever -lang appears.
+func langArg(args []string) string {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			break
+		}
+		name, value, hasValue := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		if !strings.HasPrefix(a, "-") || name != "lang" {
+			continue
+		}
+		if hasValue {
+			return value
+		}
+		if i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
+}
+
+func newFlagSet(stderr io.Writer, o *options, T i18n.LanguageStrings) *flag.FlagSet {
 	fs := flag.NewFlagSet("zoneaudit", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.StringVar(&o.domain, "d", "", "Target domain to scan (e.g. example.com)")
@@ -56,7 +82,7 @@ func newFlagSet(stderr io.Writer, o *options) *flag.FlagSet {
 	fs.Usage = func() {
 		out := fs.Output()
 		fmt.Fprintf(out, "ZoneAudit Community Edition v%s\n\n", scanner.Version)
-		fmt.Fprintf(out, "%s\n\n", responsibleUse)
+		fmt.Fprintf(out, "%s\n\n", T.ResponsibleUse)
 		fmt.Fprintf(out, "Usage: zoneaudit -d <domain> [-c N] [-rate N] [-timeout D] [-json] [-lang en|fr|de]\n\nOptions:\n")
 		fs.PrintDefaults()
 	}
@@ -67,7 +93,7 @@ func newFlagSet(stderr io.Writer, o *options) *flag.FlagSet {
 // clients; the flags fill in the limits.
 func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scanner.Config) int {
 	var o options
-	fs := newFlagSet(stderr, &o)
+	fs := newFlagSet(stderr, &o, stringsFor(langArg(args)))
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -104,19 +130,20 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scann
 		return 2
 	}
 	now := s.Config().Now
+	T := stringsFor(o.lang)
 
-	T := i18n.GetStrings()
-	if o.lang != "" {
-		T = i18n.For(o.lang)
-	}
+	// The clock starts before the root check, whose lookups are counted in
+	// the report's requests.
+	start := now()
 
-	// Fail fast if the root domain does not resolve.
-	if !s.RootResolves(ctx, domain) {
+	// Fail fast if the root domain does not resolve. If the check failed
+	// because the scan was interrupted (Ctrl+C), carry on instead: every
+	// later step stops at once without sending requests, and the partial
+	// report is written with exit status 130.
+	if !s.RootResolves(ctx, domain) && !errors.Is(ctx.Err(), context.Canceled) {
 		fmt.Fprintf(stderr, "[CRITICAL] Root domain resolution failed for '%s'. Check connectivity or spelling.\n", domain)
 		return 1
 	}
-
-	start := now()
 	if !o.asJSON {
 		fmt.Fprintf(stdout, T.StartingScan+"\n", domain)
 		fmt.Fprintf(stdout, T.WorkerInfo+"\n", s.Config().Concurrency, len(s.Wordlist()))
@@ -189,24 +216,51 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scann
 // exitInterrupted is returned when the scan was cancelled (Ctrl+C).
 const exitInterrupted = 130
 
+// safe makes a value from DNS or a web server safe to print on a terminal:
+// control characters (including ESC, so no terminal escape sequences),
+// Unicode format characters such as bidirectional overrides, and invalid
+// UTF-8 are shown as escapes instead of being written raw. It is used for
+// every scanned value in the text report; the JSON report keeps the data
+// unchanged.
+func safe(v string) string {
+	var b strings.Builder
+	for i := 0; i < len(v); {
+		r, size := utf8.DecodeRuneInString(v[i:])
+		switch {
+		case r == utf8.RuneError && size == 1:
+			fmt.Fprintf(&b, "\\x%02x", v[i])
+		case unicode.IsControl(r) || unicode.Is(unicode.Cf, r):
+			if r < 0x100 {
+				fmt.Fprintf(&b, "\\x%02x", r)
+			} else {
+				fmt.Fprintf(&b, "\\u%04x", r)
+			}
+		default:
+			b.WriteRune(r)
+		}
+		i += size
+	}
+	return b.String()
+}
+
 // renderText writes the terminal report. Its last line is the request-access line.
 func renderText(w io.Writer, T i18n.LanguageStrings, results scanner.ScanResults, duration time.Duration) {
 	for _, res := range results.Active {
 		var line strings.Builder
-		fmt.Fprintf(&line, "[+] %-25s | ", res.Subdomain)
+		fmt.Fprintf(&line, "[+] %-25s | ", safe(res.Subdomain))
 
 		if len(res.Records) > 0 && len(res.Records[0].Value) > 0 {
 			rec := res.Records[0]
-			fmt.Fprintf(&line, "%s: %-15s ", rec.Type, rec.Value[0])
+			fmt.Fprintf(&line, "%s: %-15s ", safe(rec.Type), safe(rec.Value[0]))
 		}
 
 		if res.HTTP != nil {
 			meta := fmt.Sprintf("HTTP:%d", res.HTTP.Status)
 			if res.HTTP.Server != "" {
-				meta += " (" + res.HTTP.Server + ")"
+				meta += " (" + safe(res.HTTP.Server) + ")"
 			}
 			if res.HTTP.Title != "" {
-				meta += " [" + res.HTTP.Title + "]"
+				meta += " [" + safe(res.HTTP.Title) + "]"
 			}
 			fmt.Fprintf(&line, "| %s ", meta)
 		}
@@ -216,10 +270,10 @@ func renderText(w io.Writer, T i18n.LanguageStrings, results scanner.ScanResults
 				continue
 			}
 			if rec.Type == scanner.RecordUnchecked {
-				fmt.Fprintf(&line, "| %s: %s ", rec.Value[0], T.CouldNotCheck)
+				fmt.Fprintf(&line, "| %s: %s ", safe(rec.Value[0]), T.CouldNotCheck)
 				continue
 			}
-			fmt.Fprintf(&line, "| %s: %v ", rec.Type, rec.Value[0])
+			fmt.Fprintf(&line, "| %s: %s ", safe(rec.Type), safe(rec.Value[0]))
 		}
 
 		if res.SSL != nil {
@@ -244,7 +298,7 @@ func renderText(w io.Writer, T i18n.LanguageStrings, results scanner.ScanResults
 		}
 		spf, dmarc := label(es.SPFStatus), label(es.DMARCStatus)
 		if es.DMARC && es.DMARCPolicy != "" {
-			dmarc += " (p=" + es.DMARCPolicy + ")"
+			dmarc += " (p=" + safe(es.DMARCPolicy) + ")"
 		}
 		fmt.Fprintf(w, "\n[*] "+T.EmailSecurity+"\n", spf, dmarc)
 		switch {
@@ -262,7 +316,7 @@ func renderText(w io.Writer, T i18n.LanguageStrings, results scanner.ScanResults
 
 	fmt.Fprintln(w, "\n"+strings.Repeat("-", 60))
 	fmt.Fprintf(w, "ZoneAudit Community Edition v%s\n", scanner.Version)
-	fmt.Fprintf(w, T.ScanComplete+"\n", results.Domain)
+	fmt.Fprintf(w, T.ScanComplete+"\n", safe(results.Domain))
 	fmt.Fprintf(w, T.DurationInfo+"\n", duration.Round(time.Millisecond), len(results.Active))
 	fmt.Fprintln(w, strings.Repeat("-", 60))
 	fmt.Fprintln(w, T.RequestAccess)

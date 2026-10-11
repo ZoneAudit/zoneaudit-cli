@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -113,6 +114,7 @@ func TestJSONReport(t *testing.T) {
 }
 
 func TestHelpShowsResponsibleUse(t *testing.T) {
+	t.Setenv("LANG", "en_GB.UTF-8")
 	for _, arg := range []string{"-h", "--help"} {
 		code, out, errOut := runCLI(t, arg)
 		if code != 0 {
@@ -232,6 +234,183 @@ func TestLookupFailuresAreNotReportedAsMissing(t *testing.T) {
 	for _, unwanted := range []string{"No DMARC record", "RISK: DANGLING-CNAME"} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("a failed lookup must not produce %q:\n%s", unwanted, text)
+		}
+	}
+}
+
+func TestHelpFollowsLang(t *testing.T) {
+	t.Setenv("LANG", "en_GB.UTF-8")
+	want := map[string]string{
+		"en": "RESPONSIBLE USE:",
+		"fr": "UTILISATION RESPONSABLE :",
+		"de": "VERANTWORTUNGSVOLLE NUTZUNG:",
+	}
+	for lang, heading := range want {
+		notice := i18n.For(lang).ResponsibleUse
+		if !strings.HasPrefix(notice, heading) || !strings.Contains(notice, "-rate") || !strings.Contains(notice, "-timeout") {
+			t.Errorf("%s: notice is incomplete: %q", lang, notice)
+		}
+		for _, args := range [][]string{
+			{"-lang", lang, "-h"},
+			{"-h", "-lang", lang}, // -lang after -h still applies
+			{"--lang=" + lang, "--help"},
+		} {
+			code, out, errOut := runCLI(t, args...)
+			help := out + errOut
+			if code != 0 || !strings.Contains(help, notice) {
+				t.Errorf("%v: exit %d, help does not contain the %s notice:\n%s", args, code, lang, help)
+			}
+		}
+	}
+	// With no -lang, LANG chooses.
+	t.Setenv("LANG", "de_DE.UTF-8")
+	if _, _, errOut := runCLI(t, "-h"); !strings.Contains(errOut, i18n.For("de").ResponsibleUse) {
+		t.Errorf("LANG=de_DE: help is not in German:\n%s", errOut)
+	}
+}
+
+// hostileResolver adds TXT records carrying terminal escape sequences.
+func hostileResolver() *scannertest.Resolver {
+	r := scannertest.LoadResolver("example.com")
+	// A TXT-only host, so the TXT value is the first record printed.
+	r.TXT["vpn.example.com"] = []string{"\x1b]0;owned\x07\x1b[2Jfirst"}
+	// A host whose TXT value is printed after its CNAME.
+	r.TXT["old.example.com"] = []string{"later\x1b[31m\u202e"}
+	return r
+}
+
+func TestTextReportEscapesControlSequences(t *testing.T) {
+	cfg := fixtureConfig()
+	cfg.Resolver = hostileResolver()
+	var out, errOut bytes.Buffer
+	if code := run(context.Background(), []string{"-d", "example.com", "-rate", "100", "-lang", "en"}, &out, &errOut, cfg); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	text := out.String()
+	if strings.ContainsAny(text, "\x1b\x07\u202e") {
+		t.Errorf("text report contains raw control characters:\n%q", text)
+	}
+	for _, want := range []string{
+		`TXT: \x1b]0;owned\x07\x1b[2Jfirst`,
+		`| TXT: later\x1b[31m\u202e`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("text report is missing the escaped value %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestJSONReportKeepsRawValues(t *testing.T) {
+	cfg := fixtureConfig()
+	cfg.Resolver = hostileResolver()
+	var out, errOut bytes.Buffer
+	if code := run(context.Background(), []string{"-d", "example.com", "-rate", "100", "-json"}, &out, &errOut, cfg); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	var rep scanner.ScanResults
+	if err := json.Unmarshal(out.Bytes(), &rep); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range rep.Active {
+		for _, rec := range r.Records {
+			for _, v := range rec.Value {
+				if v == "\x1b]0;owned\x07\x1b[2Jfirst" {
+					found = true
+				}
+			}
+		}
+	}
+	if !found {
+		t.Error("JSON report should keep the DNS value unchanged")
+	}
+}
+
+// rootHook runs fn on the first lookup of the root domain.
+type rootHook struct {
+	*scannertest.Resolver
+	once sync.Once
+	fn   func()
+}
+
+func (r *rootHook) LookupHost(ctx context.Context, host string) ([]string, error) {
+	if host == "example.com" {
+		r.once.Do(r.fn)
+	}
+	return r.Resolver.LookupHost(ctx, host)
+}
+
+func TestInterruptDuringRootCheckExits130(t *testing.T) {
+	for _, mode := range []string{"text", "json"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			cfg := fixtureConfig()
+			cfg.Resolver = &rootHook{Resolver: scannertest.LoadResolver("example.com"), fn: cancel}
+			args := []string{"-d", "example.com", "-rate", "100", "-lang", "en"}
+			if mode == "json" {
+				args = append(args, "-json")
+			}
+			var out, errOut bytes.Buffer
+			code := run(ctx, args, &out, &errOut, cfg)
+			if code != 130 {
+				t.Errorf("exit %d, want 130", code)
+			}
+			if strings.Contains(errOut.String(), "Root domain resolution failed") || !strings.Contains(errOut.String(), "interrupted") {
+				t.Errorf("stderr should report an interruption, not a resolution failure: %q", errOut.String())
+			}
+			if mode == "json" {
+				var rep scanner.ScanResults
+				if err := json.Unmarshal(out.Bytes(), &rep); err != nil || rep.Domain != "example.com" || rep.Total != 0 {
+					t.Errorf("partial JSON report: %v %+v", err, rep)
+				}
+			} else if !strings.HasSuffix(strings.TrimRight(out.String(), "\n"), i18n.For("en").RequestAccess) {
+				t.Errorf("partial text report not written:\n%s", out.String())
+			}
+		})
+	}
+}
+
+func TestDurationIncludesRootCheck(t *testing.T) {
+	var mu sync.Mutex
+	now := scannertest.Now
+	cfg := fixtureConfig()
+	cfg.Now = func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	// The root check takes 10 seconds on the fake clock.
+	cfg.Resolver = &rootHook{Resolver: scannertest.LoadResolver("example.com"), fn: func() {
+		mu.Lock()
+		now = now.Add(10 * time.Second)
+		mu.Unlock()
+	}}
+	var out, errOut bytes.Buffer
+	if code := run(context.Background(), []string{"-d", "example.com", "-rate", "100", "-json"}, &out, &errOut, cfg); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	var rep scanner.ScanResults
+	if err := json.Unmarshal(out.Bytes(), &rep); err != nil {
+		t.Fatal(err)
+	}
+	if rep.DurationMS < 10000 {
+		t.Errorf("duration_ms = %d, want at least 10000 (the root check is part of the scan)", rep.DurationMS)
+	}
+	if !rep.GeneratedAt.Equal(scannertest.Now) {
+		t.Errorf("generated_at = %s, want the time before the root check", rep.GeneratedAt)
+	}
+}
+
+func TestSafe(t *testing.T) {
+	cases := map[string]string{
+		"plain text, café":  "plain text, café",
+		"\x1b[2J":           `\x1b[2J`,
+		"bell\x07":          `bell\x07`,
+		"\u009b31m":         `\x9b31m`,
+		"rtl\u202eoverride": `rtl\u202eoverride`,
+		"bad\xffutf8":       `bad\xffutf8`,
+		"tab\tand\nnewline": `tab\x09and\x0anewline`,
+	}
+	for in, want := range cases {
+		if got := safe(in); got != want {
+			t.Errorf("safe(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

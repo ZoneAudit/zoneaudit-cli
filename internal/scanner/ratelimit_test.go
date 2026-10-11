@@ -78,3 +78,18 @@ func TestEveryLookupHasTheRequestTimeout(t *testing.T) {
 		}
 	}
 }
+
+func TestLimiterCountsOnlyAdmittedRequests(t *testing.T) {
+	l := scanner.NewLimiter(1) // one per second
+	if err := l.Wait(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if err := l.Wait(ctx); err == nil { // has to wait about a second, so it is cancelled
+		t.Fatal("Wait should fail when cancelled while waiting")
+	}
+	if n := l.Count(); n != 1 {
+		t.Errorf("count = %d, want 1: a request cancelled before admission must not be counted", n)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"sync/atomic"
 )
 
 // CommonSubdomains is the fixed list of common infrastructure hostnames the
@@ -34,7 +35,11 @@ var CommonSubdomains = []string{
 // the configured number of workers. Every outbound request goes through the
 // shared rate limiter. Results are sorted: the root domain first, then by name.
 // progress, if not nil, receives 1 for each wordlist name checked.
+// HTTP redirects are only followed within domain and its subdomains.
+// Total counts the wordlist names actually tried, so an interrupted scan
+// reports fewer than the full wordlist.
 func (s *Scanner) RunScan(ctx context.Context, domain string, progress chan<- int) ScanResults {
+	ctx = WithScope(ctx, domain)
 	results := ScanResults{
 		SchemaVersion: SchemaVersion,
 		Tool:          Tool{Name: ToolName, Version: Version},
@@ -46,7 +51,6 @@ func (s *Scanner) RunScan(ctx context.Context, domain string, progress chan<- in
 			TimeoutSeconds: s.cfg.Timeout.Seconds(),
 		},
 		Active: []Result{},
-		Total:  len(s.cfg.Wordlist),
 	}
 
 	rootRes := s.CheckSubdomain(ctx, domain)
@@ -57,6 +61,7 @@ func (s *Scanner) RunScan(ctx context.Context, domain string, progress chan<- in
 	tasks := make(chan string)
 	resChan := make(chan Result, len(s.cfg.Wordlist))
 	var wg sync.WaitGroup
+	var tried atomic.Int64
 
 	for i := 0; i < s.cfg.Concurrency; i++ {
 		wg.Add(1)
@@ -66,6 +71,7 @@ func (s *Scanner) RunScan(ctx context.Context, domain string, progress chan<- in
 				if ctx.Err() != nil {
 					continue // drain without making requests
 				}
+				tried.Add(1)
 				res := s.CheckSubdomain(ctx, sub+"."+domain)
 				if res.IsActive {
 					resChan <- res
@@ -97,5 +103,6 @@ func (s *Scanner) RunScan(ctx context.Context, domain string, progress chan<- in
 	}
 	sort.Slice(found, func(i, j int) bool { return found[i].Subdomain < found[j].Subdomain })
 	results.Active = append(results.Active, found...)
+	results.Total = int(tried.Load())
 	return results
 }

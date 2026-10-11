@@ -114,3 +114,30 @@ func TestJSONReportGolden(t *testing.T) {
 		t.Errorf("generated_at is not RFC 3339: %v", err)
 	}
 }
+
+// cancelOnHost cancels the scan when a given host is looked up.
+type cancelOnHost struct {
+	*scannertest.Resolver
+	host   string
+	cancel context.CancelFunc
+}
+
+func (r cancelOnHost) LookupHost(ctx context.Context, host string) ([]string, error) {
+	if host == r.host {
+		r.cancel()
+	}
+	return r.Resolver.LookupHost(ctx, host)
+}
+
+func TestInterruptedScanCountsOnlyNamesTried(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f := newFixture(t, func(c *scanner.Config) {
+		c.Concurrency = 1 // names are tried in wordlist order
+		c.Resolver = cancelOnHost{Resolver: scannertest.LoadResolver("example.com"), host: "mail.example.com", cancel: cancel}
+	})
+	res := f.s.RunScan(ctx, "example.com", nil)
+	if res.Total != 2 {
+		t.Errorf("total_scanned = %d, want 2 (www and mail were tried before the interruption, of %d)", res.Total, len(f.s.Wordlist()))
+	}
+}

@@ -48,7 +48,9 @@ func (s *Scanner) checkSSL(ctx context.Context, fqdn string) *SSLInfo {
 	}
 }
 
-var titleRegex = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
+// titleRegex matches <title> or <title attr...>, but not tags that merely
+// start with "title" such as <titlefake>.
+var titleRegex = regexp.MustCompile(`(?is)<title(?:\s[^>]*)?>(.*?)</title\s*>`)
 
 // maxBodyRead is how much of a page is read to find its title.
 const maxBodyRead = 8192

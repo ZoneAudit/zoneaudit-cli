@@ -17,7 +17,7 @@ Le CLI affiche des résultats bruts, en lecture seule ; le service ZoneAudit en 
 
 **Analysez uniquement les domaines dont vous êtes propriétaire ou que vous êtes autorisé à évaluer.**
 
-Pour chaque hôte trouvé, ZoneAudit résout les enregistrements DNS, effectue une négociation TLS et une requête HTTP(S) légère (en HTTP simple uniquement si HTTPS ne répond pas, avec au plus 2 redirections). Il effectue aussi une requête RDAP pour la date d'expiration du domaine. Il ne scanne pas les ports et ne tente aucun accès.
+Pour chaque hôte trouvé, ZoneAudit résout les enregistrements DNS, effectue une négociation TLS et une requête HTTP(S) légère (en HTTP simple uniquement si HTTPS ne répond pas, avec au plus 2 redirections au sein du domaine analysé). Il effectue aussi une requête RDAP pour la date d'expiration du domaine. Il ne scanne pas les ports et ne tente aucun accès.
 
 Chaque requête (chaque résolution DNS, négociation TLS, requête HTTP et la requête RDAP) passe par une même limite de débit, 25 requêtes par seconde par défaut (`-rate`, 100 au maximum), et a son propre délai d'attente, 5 secondes par défaut (`-timeout`). Le même avertissement figure en tête de `zoneaudit --help`.
 

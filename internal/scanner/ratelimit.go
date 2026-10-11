@@ -40,8 +40,8 @@ func (l *Limiter) Wait(ctx context.Context) error {
 		return nil
 	}
 	l.mu.Lock()
-	l.count++
 	if l.interval == 0 {
+		l.count++
 		l.mu.Unlock()
 		return nil
 	}
@@ -53,20 +53,28 @@ func (l *Limiter) Wait(ctx context.Context) error {
 	l.next = l.next.Add(l.interval)
 	l.mu.Unlock()
 
-	if wait <= 0 {
-		return nil
+	if wait > 0 {
+		t := time.NewTimer(wait)
+		defer t.Stop()
+		select {
+		case <-ctx.Done():
+			return ctx.Err() // not admitted, so not counted
+		case <-t.C:
+		}
 	}
-	t := time.NewTimer(wait)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
-	}
+	l.admitted()
+	return nil
 }
 
-// Count returns how many requests have passed through the limiter.
+// admitted counts a request once it has been allowed to start.
+func (l *Limiter) admitted() {
+	l.mu.Lock()
+	l.count++
+	l.mu.Unlock()
+}
+
+// Count returns how many requests the limiter has admitted. A Wait that
+// ends because its context was cancelled is not counted.
 func (l *Limiter) Count() int64 {
 	if l == nil {
 		return 0

@@ -135,18 +135,14 @@ func New(cfg Config) (*Scanner, error) {
 		baseRT = http.DefaultTransport
 	}
 	client.Transport = &limitedTransport{base: baseRT, limiter: s.limiter, timeout: cfg.Timeout}
-	if client.CheckRedirect == nil {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 3 {
-				return http.ErrUseLastResponse
-			}
-			return nil
-		}
-	}
+	// RDAP keeps the caller's redirect policy: rdap.org redirects to the
+	// registry's own server, which is outside the scanned domain.
+	rdapClient := client
+	client.CheckRedirect = s.scopedRedirectPolicy(client.CheckRedirect)
 	s.http = &client
 
 	if cfg.HTTPClient != nil {
-		s.rdap = s.http
+		s.rdap = &rdapClient
 	} else {
 		s.rdap = &http.Client{
 			Transport: &limitedTransport{base: http.DefaultTransport, limiter: s.limiter, timeout: cfg.Timeout},

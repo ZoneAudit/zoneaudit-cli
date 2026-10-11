@@ -17,7 +17,7 @@ Das CLI zeigt rohe, rein lesend erhobene Ergebnisse; der ZoneAudit-Dienst macht 
 
 **Scannen Sie nur Domains, die Ihnen gehören oder für deren Prüfung Sie autorisiert sind.**
 
-Für jeden gefundenen Host löst ZoneAudit DNS-Einträge auf, führt einen TLS-Handshake und eine leichte HTTP(S)-Anfrage aus (einfaches HTTP nur, wenn HTTPS nicht antwortet, mit höchstens 2 Weiterleitungen). Außerdem stellt es eine RDAP-Anfrage zum Ablaufdatum der Domain. Es scannt keine Ports und versucht keinen Zugriff.
+Für jeden gefundenen Host löst ZoneAudit DNS-Einträge auf, führt einen TLS-Handshake und eine leichte HTTP(S)-Anfrage aus (einfaches HTTP nur, wenn HTTPS nicht antwortet, mit höchstens 2 Weiterleitungen innerhalb der gescannten Domain). Außerdem stellt es eine RDAP-Anfrage zum Ablaufdatum der Domain. Es scannt keine Ports und versucht keinen Zugriff.
 
 Jede Anfrage (jede DNS-Abfrage, jeder TLS-Handshake, jede HTTP-Anfrage und die RDAP-Anfrage) unterliegt einer gemeinsamen Ratenbegrenzung, standardmäßig 25 Anfragen pro Sekunde (`-rate`, höchstens 100), und hat ein eigenes Zeitlimit, standardmäßig 5 Sekunden (`-timeout`). Derselbe Hinweis steht am Anfang von `zoneaudit --help`.
 

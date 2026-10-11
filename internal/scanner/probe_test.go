@@ -93,7 +93,8 @@ func TestHTTPBanner(t *testing.T) {
 
 func TestHTTPBannerFollowsRedirect(t *testing.T) {
 	f := newFixture(t, nil)
-	res := f.s.CheckSubdomain(context.Background(), "www.example.com")
+	ctx := scanner.WithScope(context.Background(), "example.com")
+	res := f.s.CheckSubdomain(ctx, "www.example.com")
 	if res.HTTP == nil || res.HTTP.Status != 200 || res.HTTP.Title != "Example Domain & Co" {
 		t.Errorf("redirect not followed: %+v", res.HTTP)
 	}
@@ -133,11 +134,14 @@ func TestHTTPRedirectLoopIsCapped(t *testing.T) {
 
 func TestExtractTitle(t *testing.T) {
 	cases := map[string]string{
-		"<title>Hello</title>":                        "Hello",
-		"<TITLE lang=\"en\">  Multi\n line  </TITLE>": "Multi line",
-		"<title>Caf&eacute; &lt;3</title>":            "Café <3",
-		"<html><body>no title</body></html>":          "",
-		"<title>first</title><title>second</title>":   "first",
+		"<title>Hello</title>":                         "Hello",
+		"<TITLE lang=\"en\">  Multi\n line  </TITLE>":  "Multi line",
+		"<title>Caf&eacute; &lt;3</title>":             "Café <3",
+		"<html><body>no title</body></html>":           "",
+		"<title>first</title><title>second</title>":    "first",
+		"<titlefake>no</titlefake><title>real</title>": "real",
+		"<titlefake>only a lookalike</titlefake>":      "",
+		"<title\tlang=\"en\">Tab</title >":             "Tab",
 	}
 	for in, want := range cases {
 		if got := scanner.ExtractTitle([]byte(in)); got != want {
