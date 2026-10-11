@@ -7,6 +7,33 @@ Toutes les modifications notables de la ZoneAudit™ Community Edition seront do
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 et ce projet adhère au [Versionnement Sémantique](https://semver.org/spec/v2.0.0.html).
 
+## [Non publié]
+
+## [0.3.0] - 2026-10-09
+
+### Ajouté
+- **Tests pour chaque vérification**, exécutés sur des données enregistrées, sans réseau : expiration RDAP, découverte de sous-domaines, enregistrements A/AAAA, CNAME, TXT et MX, signalement des CNAME pendants, SPF et DMARC (y compris l'avertissement `p=none`), expiration et émetteur des certificats, et bannière HTTP.
+- **CI sur chaque pull request** : tests sous Linux, macOS et Windows, en amd64 et arm64, avec `go vet`, staticcheck, une publication à blanc et des vérifications des installateurs en une ligne (macOS, Windows PowerShell 5.1, PowerShell 7 et ARM).
+- **Analyse courtoise** : `-rate` plafonne les requêtes par seconde, DNS, TLS, HTTP et RDAP confondus (25 par défaut, 100 au maximum), et `-timeout` borne chaque requête (5 s par défaut). Les requêtes s'identifient avec un User-Agent `zoneaudit-cli/<version>`.
+- **Versions signées** : `checksums.txt` est signé avec la signature sans clé de cosign (OIDC GitHub, aucune clé stockée) et chaque archive a une nomenclature SPDX.
+- **Paquets** : le workflow de publication génère un cask Homebrew et un manifeste Scoop, et les publie dès que les dépôts du tap et du bucket existent.
+- **Sortie JSON stable** avec un champ `schema_version` (`"1.0"`), documentée dans `docs/json-output.md` ; le rapport indique aussi l'heure, la durée, les limites utilisées et le nombre de requêtes.
+- `SECURITY.md`, `CONTRIBUTING.md` et un exemple de rapport dans le README.
+- Option `-version`.
+
+### Changé
+- `--help` commence par l'avertissement d'utilisation responsable.
+- Le rapport texte se termine par une ligne sur la demande d'accès à la revue ZoneAudit complète.
+- Les résultats sont triés (le domaine d'abord, puis par nom), ainsi que les enregistrements de chaque hôte, pour des rapports reproductibles.
+- L'argument de domaine est normalisé (casse, point final, URL collée) et refusé s'il ne s'agit pas d'un nom de domaine.
+- Les erreurs et la barre de progression vont sur la sortie d'erreur ; la sortie JSON est indentée.
+- La section d'architecture du README est remplacée par une description d'une ligne, et la feuille de route ne mentionne plus le sondage de protocoles ni le stockage local de l'historique.
+
+### Corrigé
+- Le workflow de publication installe Go avec `actions/setup-go` (il exécutait `actions/checkout` deux fois).
+- Les requêtes RDAP vérifient le certificat du serveur.
+- Un préfixe proche de `v=spf1`, comme `v=spf10`, n'est plus compté comme SPF.
+
 ## [0.2.0] - 2026-06-03
 
 ### Ajouté
