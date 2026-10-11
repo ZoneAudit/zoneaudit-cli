@@ -6,27 +6,67 @@ on:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: write # publish the GitHub release
+  id-token: write # cosign keyless signing with the workflow's OIDC identity
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+
   goreleaser:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/checkout@v4
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.21'
-      
+          go-version: stable
+
+      - name: Install syft (SBOMs)
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Install cosign (signing)
+        uses: sigstore/cosign-installer@v4
+
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
-          version: latest
+          version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional. When this secret is absent, the Homebrew cask and Scoop
+          # manifest are still generated (see the artefact below) but not pushed.
+          PACKAGES_TOKEN: ${{ secrets.ZONEAUDIT_PACKAGES_TOKEN }}
+
+      - name: Verify the checksum signature
+        run: |
+          cosign verify-blob \
+            --bundle dist/checksums.txt.sigstore.json \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/release.yml@${{ github.ref }}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            dist/checksums.txt
+
+      - name: Keep the generated package manifests
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-manifests
+          path: |
+            dist/homebrew/
+            dist/scoop/
+          if-no-files-found: warn
