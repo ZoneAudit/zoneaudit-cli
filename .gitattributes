@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.http -text
+# Byte-exact vendored copies; checked against scripts/install-test/SHA256SUMS.
+scripts/install-test/install.sh -text
+scripts/install-test/install.ps1 -text

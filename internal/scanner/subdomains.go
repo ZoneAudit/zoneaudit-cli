@@ -2,12 +2,13 @@ package scanner
 
 import (
 	"context"
-	"fmt"
+	"sort"
 	"sync"
 )
 
-// CommonSubdomains is the hostname list for the Community Edition, covering common infrastructure names.
-// In the full DeepScan™ enterprise engine, this is driven by massive wordlists, passive discovery, and heuristics.
+// CommonSubdomains is the fixed list of common infrastructure hostnames the
+// Community Edition tries under the domain. It does not use certificate logs
+// or any other discovery source.
 var CommonSubdomains = []string{
 	"www", "mail", "remote", "blog", "webmail", "server", "ns1", "ns2",
 	"smtp", "vpn", "m", "shop", "ftp", "dev", "staging", "api", "test",
@@ -29,74 +30,72 @@ var CommonSubdomains = []string{
 	"office", "remote2", "citrix", "rds", "vdi", "guest", "wifi", "network",
 }
 
-// ScanResults contains the summary of a scan run.
-type ScanResults struct {
-	Domain        string         `json:"domain"`
-	Version       string         `json:"version"`
-	DomainExpiry  *DomainExpiry  `json:"domain_expiry,omitempty"`
-	EmailSecurity *EmailSecurity `json:"email_security,omitempty"`
-	Active        []Result       `json:"active"`
-	Total         int            `json:"total_scanned"`
-}
-
-// RunScan executes a concurrent scan against a domain using the common wordlist.
-func RunScan(ctx context.Context, domain string, concurrency int, progress chan<- int) ScanResults {
+// RunScan checks the root domain, then each wordlist name under it, using
+// the configured number of workers. Every outbound request goes through the
+// shared rate limiter. Results are sorted: the root domain first, then by name.
+// progress, if not nil, receives 1 for each wordlist name checked.
+func (s *Scanner) RunScan(ctx context.Context, domain string, progress chan<- int) ScanResults {
 	results := ScanResults{
-		Domain:  domain,
-		Version: Version,
-		Active:  []Result{},
+		SchemaVersion: SchemaVersion,
+		Tool:          Tool{Name: ToolName, Version: Version},
+		Domain:        domain,
+		Version:       Version,
+		Settings: Settings{
+			Concurrency:    s.cfg.Concurrency,
+			RatePerSecond:  s.cfg.Rate,
+			TimeoutSeconds: s.cfg.Timeout.Seconds(),
+		},
+		Active: []Result{},
+		Total:  len(s.cfg.Wordlist),
 	}
 
-	// Always check the root domain first
-	rootRes := CheckSubdomain(ctx, domain)
+	rootRes := s.CheckSubdomain(ctx, domain)
 	if rootRes.IsActive {
 		results.Active = append(results.Active, rootRes)
 	}
 
-	tasks := make(chan string, len(CommonSubdomains))
-	resChan := make(chan Result, len(CommonSubdomains))
+	tasks := make(chan string)
+	resChan := make(chan Result, len(s.cfg.Wordlist))
 	var wg sync.WaitGroup
 
-	// Start workers
-	for i := 0; i < concurrency; i++ {
+	for i := 0; i < s.cfg.Concurrency; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for sub := range tasks {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					fqdn := fmt.Sprintf("%s.%s", sub, domain)
-					res := CheckSubdomain(ctx, fqdn)
-					if res.IsActive {
-						resChan <- res
-					}
-					if progress != nil {
-						progress <- 1
-					}
+				if ctx.Err() != nil {
+					continue // drain without making requests
+				}
+				res := s.CheckSubdomain(ctx, sub+"."+domain)
+				if res.IsActive {
+					resChan <- res
+				}
+				if progress != nil {
+					progress <- 1
 				}
 			}
 		}()
 	}
 
-	// Feed tasks
-	for _, sub := range CommonSubdomains {
-		tasks <- sub
-	}
-	close(tasks)
-
-	// Wait for workers in a separate routine
 	go func() {
-		wg.Wait()
-		close(resChan)
+		defer close(tasks)
+		for _, sub := range s.cfg.Wordlist {
+			select {
+			case tasks <- sub:
+			case <-ctx.Done():
+				return
+			}
+		}
 	}()
 
-	// Collect results
-	for res := range resChan {
-		results.Active = append(results.Active, res)
-	}
+	wg.Wait()
+	close(resChan)
 
-	results.Total = len(CommonSubdomains)
+	var found []Result
+	for res := range resChan {
+		found = append(found, res)
+	}
+	sort.Slice(found, func(i, j int) bool { return found[i].Subdomain < found[j].Subdomain })
+	results.Active = append(results.Active, found...)
 	return results
 }

@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0",
+  "tool": {
+    "name": "zoneaudit-cli",
+    "version": "0.0.0-test"
+  },
+  "domain": "example.com",
+  "generated_at": "2026-10-09T12:00:00Z",
+  "duration_ms": 1234,
+  "settings": {
+    "concurrency": 10,
+    "rate_per_second": 100,
+    "timeout_seconds": 2
+  },
+  "requests": 0,
+  "domain_expiry": {
+    "expiry_date": "2027-08-13T04:00:00Z",
+    "days_left": 307,
+    "is_critical": false
+  },
+  "email_security": {
+    "spf": true,
+    "dmarc": true,
+    "dmarc_policy": "none",
+    "dmarc_weak": true
+  },
+  "active": [
+    {
+      "subdomain": "example.com",
+      "records": [
+        {
+          "type": "A/AAAA",
+          "value": [
+            "23.192.228.80",
+            "2600:1406:3a00:21::173e:2e65"
+          ]
+        },
+        {
+          "type": "TXT",
+          "value": [
+            "google-site-verification=abc123",
+            "v=spf1 include:_spf.example.com -all"
+          ]
+        },
+        {
+          "type": "MX",
+          "value": [
+            "mx1.example.com (10)",
+            "mx2.example.com (20)"
+          ]
+        }
+      ],
+      "is_active": true,
+      "ssl": {
+        "issuer": "DigiCert Global G3 TLS ECC SHA384 2020 CA1",
+        "expiry": "2026-12-08T13:00:00Z",
+        "days_left": 60,
+        "is_critical": false
+      },
+      "http": {
+        "server": "ECS (nyd/D10E)",
+        "title": "Example Domain & Co",
+        "status": 200
+      }
+    },
+    {
+      "subdomain": "mail.example.com",
+      "records": [
+        {
+          "type": "TXT",
+          "value": [
+            "v=spf1 -all"
+          ]
+        },
+        {
+          "type": "MX",
+          "value": [
+            "mx1.example.com (10)"
+          ]
+        }
+      ],
+      "is_active": true
+    },
+    {
+      "subdomain": "old.example.com",
+      "records": [
+        {
+          "type": "CNAME",
+          "value": [
+            "example-old.herokudns.example.org"
+          ]
+        },
+        {
+          "type": "RISK",
+          "value": [
+            "DANGLING-CNAME"
+          ]
+        }
+      ],
+      "is_active": true
+    },
+    {
+      "subdomain": "shop.example.com",
+      "records": [
+        {
+          "type": "A/AAAA",
+          "value": [
+            "192.0.2.10"
+          ]
+        },
+        {
+          "type": "CNAME",
+          "value": [
+            "shop.provider.example.net"
+          ]
+        }
+      ],
+      "is_active": true,
+      "http": {
+        "server": "AmazonS3",
+        "status": 403
+      }
+    },
+    {
+      "subdomain": "www.example.com",
+      "records": [
+        {
+          "type": "A/AAAA",
+          "value": [
+            "23.192.228.84"
+          ]
+        }
+      ],
+      "is_active": true,
+      "ssl": {
+        "issuer": "Let's Encrypt",
+        "expiry": "2026-10-19T13:00:00Z",
+        "days_left": 10,
+        "is_critical": true
+      },
+      "http": {
+        "server": "ECS (nyd/D10E)",
+        "title": "Example Domain & Co",
+        "status": 200
+      }
+    }
+  ],
+  "total_scanned": 5,
+  "version": "0.0.0-test"
+}
