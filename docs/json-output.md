@@ -47,13 +47,13 @@ Check the major number before reading a report, for example `jq -e '.schema_vers
 | `subdomain` | string | Fully qualified host name |
 | `is_active` | boolean | Always `true` in `active` |
 | `records` | array, optional | DNS records and risk flags, see below |
-| `ssl` | object, optional | Present when a TLS handshake on port 443 returned a certificate |
+| `ssl` | object, optional | Present when a TLS handshake on port 443 returned a certificate. Connections are made only to public addresses |
 | `ssl.issuer` | string | Issuer common name, or organisation if there is no common name |
 | `ssl.expiry` | string | Leaf certificate expiry, RFC 3339, UTC |
 | `ssl.days_left` | integer | Whole days until expiry; negative once expired |
 | `ssl.is_critical` | boolean | `days_left` is below 30 |
-| `http` | object, optional | Present when an HTTP(S) request got a response |
-| `http.status` | integer | Final status code (after at most 2 redirects within the scanned domain; a redirect elsewhere, or to a private, loopback or link-local address, is not followed and its 3xx status is reported) |
+| `http` | object, optional | Present when an HTTP(S) request got a response. Connections are made only to public addresses |
+| `http.status` | integer | Final status code (after at most 2 redirects within the scanned domain; a redirect elsewhere, to an IP address or to another port is not followed and its 3xx status is reported) |
 | `http.server` | string, optional | `Server` response header |
 | `http.title` | string, optional | Page title, HTML entities decoded |
 

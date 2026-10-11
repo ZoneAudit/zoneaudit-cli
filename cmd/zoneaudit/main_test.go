@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -260,12 +262,42 @@ func TestHelpFollowsLang(t *testing.T) {
 			if code != 0 || !strings.Contains(help, notice) {
 				t.Errorf("%v: exit %d, help does not contain the %s notice:\n%s", args, code, lang, help)
 			}
+			for _, want := range localisedHelp(lang) {
+				if !strings.Contains(help, want) {
+					t.Errorf("%v: help is missing %q:\n%s", args, want, help)
+				}
+			}
+			if lang != "en" {
+				for _, english := range []string{"Usage:", "(default ", "Number of concurrent workers", "Print the version and exit"} {
+					if strings.Contains(help, english) {
+						t.Errorf("%v: %s help still contains English %q", args, lang, english)
+					}
+				}
+			}
 		}
 	}
 	// With no -lang, LANG chooses.
 	t.Setenv("LANG", "de_DE.UTF-8")
 	if _, _, errOut := runCLI(t, "-h"); !strings.Contains(errOut, i18n.For("de").ResponsibleUse) {
 		t.Errorf("LANG=de_DE: help is not in German:\n%s", errOut)
+	}
+}
+
+// localisedHelp returns the headings, option descriptions and default
+// notes the help must show in lang.
+func localisedHelp(lang string) []string {
+	T := i18n.For(lang)
+	unquote := func(s string) string { return strings.ReplaceAll(s, "`", "") }
+	return []string{
+		T.HelpUsage,
+		T.HelpOptions,
+		unquote(T.FlagDomain),
+		unquote(fmt.Sprintf(T.FlagConcurrency, scanner.MaxConcurrency)) + " " + fmt.Sprintf(T.HelpDefault, "10"),
+		unquote(fmt.Sprintf(T.FlagRate, scanner.MaxRate)) + " " + fmt.Sprintf(T.HelpDefault, "25"),
+		unquote(fmt.Sprintf(T.FlagTimeout, scanner.MinTimeout, scanner.MaxTimeout)) + " " + fmt.Sprintf(T.HelpDefault, "5s"),
+		fmt.Sprintf(T.FlagJSON, scanner.SchemaVersion),
+		unquote(T.FlagLang),
+		T.FlagVersion,
 	}
 }
 
@@ -411,6 +443,17 @@ func TestSafe(t *testing.T) {
 	for in, want := range cases {
 		if got := safe(in); got != want {
 			t.Errorf("safe(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestEveryStringIsTranslated(t *testing.T) {
+	for _, lang := range []string{"en", "fr", "de"} {
+		v := reflect.ValueOf(i18n.For(lang))
+		for i := 0; i < v.NumField(); i++ {
+			if v.Field(i).String() == "" {
+				t.Errorf("%s: %s is empty", lang, v.Type().Field(i).Name)
+			}
 		}
 	}
 }

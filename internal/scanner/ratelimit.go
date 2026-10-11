@@ -201,23 +201,24 @@ func (f *limitedCertFetcher) FetchCertificates(ctx context.Context, host string)
 	return f.base.FetchCertificates(c, host)
 }
 
-// tlsCertFetcher performs a real TLS handshake on port 443.
+// tlsCertFetcher performs a real TLS handshake on port 443, connecting
+// only to a public address of host.
 type tlsCertFetcher struct {
-	timeout time.Duration
+	dialer *publicDialer
 }
 
 func (f tlsCertFetcher) FetchCertificates(ctx context.Context, host string) ([]*x509.Certificate, error) {
-	d := &tls.Dialer{
-		NetDialer: &net.Dialer{Timeout: f.timeout},
-		Config: &tls.Config{
-			ServerName:         host,
-			InsecureSkipVerify: true, // report the certificate even if it is expired or invalid
-		},
-	}
-	conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(host, "443"))
+	raw, err := f.dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, "443"))
 	if err != nil {
 		return nil, err
 	}
+	conn := tls.Client(raw, &tls.Config{
+		ServerName:         host,
+		InsecureSkipVerify: true, // report the certificate even if it is expired or invalid
+	})
 	defer conn.Close()
-	return conn.(*tls.Conn).ConnectionState().PeerCertificates, nil
+	if err := conn.HandshakeContext(ctx); err != nil {
+		return nil, err
+	}
+	return conn.ConnectionState().PeerCertificates, nil
 }

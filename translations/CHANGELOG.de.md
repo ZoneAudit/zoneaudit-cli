@@ -37,6 +37,15 @@ und dieses Projekt hält sich an [Semantic Versioning](https://semver.org/spec/v
 - Verbleibende Tage eines abgelaufenen Zertifikats oder einer Domain werden abgerundet: Ein Ablauf vor weniger als einem Tag ergibt -1, nicht 0.
 - Das HTTP-Zeitlimit je Anfrage beginnt erst nach der Wartezeit der Ratenbegrenzung, sodass bei niedriger `-rate` wartende Anfragen nicht mehr vor dem Senden ablaufen.
 - Ein `v=spf1`-ähnliches Präfix wie `v=spf10` zählt nicht mehr als SPF.
+- Werte aus DNS und von Webservern (Einträge, `Server`-Header, Seitentitel, DMARC-Richtlinie) werden im Textbericht maskiert, sodass sie keine Terminal-Steuersequenzen einschleusen können. Die JSON-Ausgabe bleibt unverändert.
+- HTTP-Weiterleitungen werden nur innerhalb der gescannten Domain und ihrer Subdomains, auf den Standardports und nie zu einer IP-Adresse verfolgt; andernfalls wird die Weiterleitungsantwort gemeldet.
+- TLS-Handshakes und HTTP-Anfragen verbinden sich nur mit öffentlichen Adressen. Die Adresse wird beim Verbindungsaufbau geprüft, sodass eine DNS-Antwort, die sich zwischen zwei Abfragen ändert (DNS-Rebinding), keine Loopback-, private oder Link-Local-Adresse wie einen Cloud-Metadatendienst erreichen kann. Banner-Anfragen verbinden sich daher direkt, ohne HTTP-Proxy.
+- Strg+C während der anfänglichen Prüfung der Stammdomain schreibt den Teilbericht und endet mit Status 130, statt einen Auflösungsfehler zu melden.
+- Die Scandauer umfasst die Prüfung der Stammdomain, deren Abfragen bereits in `requests` gezählt wurden.
+- Der Seitentitel wird nicht mehr aus Tags gelesen, die nur mit „title“ beginnen, etwa `<titlefake>`.
+- `requests` zählt nur Anfragen, die starten durften, nicht solche, die beim Warten auf die Ratenbegrenzung abgebrochen wurden.
+- `total_scanned` zählt die tatsächlich geprüften Namen der Wortliste, sodass der Bericht eines abgebrochenen Scans docs/json-output.md entspricht.
+- `--help` folgt `-lang` (Englisch, Französisch oder Deutsch): Hinweis zur verantwortungsvollen Nutzung, Verwendungszeile, Optionsbeschreibungen und Standardwerte.
 
 ## [0.2.0] - 2026-06-03
 

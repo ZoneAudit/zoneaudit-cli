@@ -30,6 +30,19 @@ type LanguageStrings struct {
 	CouldNotCheck    string
 	// ResponsibleUse is printed at the top of --help and when no domain is given.
 	ResponsibleUse string
+
+	// Help text. In the flag descriptions, the word in backquotes is the
+	// value's placeholder in the help (as with the flag package).
+	HelpUsage       string
+	HelpOptions     string
+	HelpDefault     string // %s is the default value
+	FlagDomain      string
+	FlagConcurrency string // %d is the maximum
+	FlagRate        string // %d is the maximum
+	FlagTimeout     string // %s, %s are the minimum and maximum
+	FlagJSON        string // %s is the schema version
+	FlagLang        string
+	FlagVersion     string
 }
 
 var en = LanguageStrings{
@@ -54,12 +67,22 @@ var en = LanguageStrings{
 	SPFUnavailable:   "SPF could not be checked: the DNS lookup failed.",
 	CouldNotCheck:    "could not check (lookup failed)",
 	ResponsibleUse: `RESPONSIBLE USE: only scan domains you own or are authorised to assess.
-For each host it finds, ZoneAudit resolves DNS records, makes one TLS
-handshake and one light HTTP(S) request (plain HTTP only if HTTPS does not
-answer, following at most 2 redirects within the scanned domain). It also
-makes one RDAP query for the domain's expiry date. It does not scan ports or
-attempt access. All requests are capped by -rate and each one is bounded by
--timeout.`,
+For each host it finds, ZoneAudit resolves DNS records and, if the host has a
+public address, makes one TLS handshake and one light HTTP(S) request (plain
+HTTP only if HTTPS does not answer, following at most 2 redirects within the
+scanned domain). It also makes one RDAP query for the domain's expiry date.
+It does not scan ports or attempt access. All requests are capped by -rate
+and each one is bounded by -timeout.`,
+	HelpUsage:       "Usage: zoneaudit -d <domain> [-c n] [-rate n] [-timeout duration] [-json] [-lang en|fr|de]",
+	HelpOptions:     "Options:",
+	HelpDefault:     "(default %s)",
+	FlagDomain:      "Target `domain` to scan (e.g. example.com)",
+	FlagConcurrency: "Number of concurrent workers, `n` from 1 to %d",
+	FlagRate:        "Maximum requests per second across DNS, TLS, HTTP and RDAP, `n` from 1 to %d",
+	FlagTimeout:     "Timeout for each request, a `duration` from %s to %s",
+	FlagJSON:        "Output results as JSON (schema version %s)",
+	FlagLang:        "Language `code` (en, fr or de); defaults to the LANG environment variable",
+	FlagVersion:     "Print the version and exit",
 }
 
 var fr = LanguageStrings{
@@ -85,12 +108,23 @@ var fr = LanguageStrings{
 	CouldNotCheck:    "vérification impossible (échec de la requête)",
 	ResponsibleUse: `UTILISATION RESPONSABLE : n'analysez que les domaines qui vous appartiennent
 ou que vous êtes autorisé à évaluer.
-Pour chaque hôte trouvé, ZoneAudit résout les enregistrements DNS, effectue une
-négociation TLS et une requête HTTP(S) légère (en HTTP simple uniquement si
-HTTPS ne répond pas, avec au plus 2 redirections au sein du domaine analysé).
-Il effectue aussi une requête RDAP pour la date d'expiration du domaine. Il ne
-scanne pas les ports et ne tente aucun accès. Toutes les requêtes sont limitées
-par -rate et chacune est bornée par -timeout.`,
+Pour chaque hôte trouvé, ZoneAudit résout les enregistrements DNS et, si l'hôte
+a une adresse publique, effectue une négociation TLS et une requête HTTP(S)
+légère (en HTTP simple uniquement si HTTPS ne répond pas, avec au plus
+2 redirections au sein du domaine analysé). Il effectue aussi une requête RDAP
+pour la date d'expiration du domaine. Il ne scanne pas les ports et ne tente
+aucun accès. Toutes les requêtes sont limitées par -rate et chacune est bornée
+par -timeout.`,
+	HelpUsage:       "Utilisation : zoneaudit -d <domaine> [-c n] [-rate n] [-timeout durée] [-json] [-lang en|fr|de]",
+	HelpOptions:     "Options :",
+	HelpDefault:     "(par défaut : %s)",
+	FlagDomain:      "Nom de `domaine` à analyser (par ex. example.com)",
+	FlagConcurrency: "Nombre de tâches parallèles, `n` de 1 à %d",
+	FlagRate:        "Nombre maximal de requêtes par seconde, DNS, TLS, HTTP et RDAP confondus, `n` de 1 à %d",
+	FlagTimeout:     "Délai d'attente de chaque requête, une `durée` de %s à %s",
+	FlagJSON:        "Résultats au format JSON (version de schéma %s)",
+	FlagLang:        "Langue, par son `code` (en, fr ou de) ; par défaut, celle de la variable d'environnement LANG",
+	FlagVersion:     "Affiche la version et quitte",
 }
 
 var de = LanguageStrings{
@@ -116,12 +150,23 @@ var de = LanguageStrings{
 	CouldNotCheck:    "nicht prüfbar (Abfrage fehlgeschlagen)",
 	ResponsibleUse: `VERANTWORTUNGSVOLLE NUTZUNG: Scannen Sie nur Domains, die Ihnen gehören oder
 für deren Prüfung Sie autorisiert sind.
-Für jeden gefundenen Host löst ZoneAudit DNS-Einträge auf, führt einen
-TLS-Handshake und eine leichte HTTP(S)-Anfrage aus (einfaches HTTP nur, wenn
-HTTPS nicht antwortet, mit höchstens 2 Weiterleitungen innerhalb der gescannten
-Domain). Außerdem stellt es eine RDAP-Anfrage zum Ablaufdatum der Domain. Es
-scannt keine Ports und versucht keinen Zugriff. Alle Anfragen sind durch -rate
-begrenzt und jede einzelne durch -timeout.`,
+Für jeden gefundenen Host löst ZoneAudit DNS-Einträge auf und führt, wenn der
+Host eine öffentliche Adresse hat, einen TLS-Handshake und eine leichte
+HTTP(S)-Anfrage aus (einfaches HTTP nur, wenn HTTPS nicht antwortet, mit
+höchstens 2 Weiterleitungen innerhalb der gescannten Domain). Außerdem stellt
+es eine RDAP-Anfrage zum Ablaufdatum der Domain. Es scannt keine Ports und
+versucht keinen Zugriff. Alle Anfragen sind durch -rate begrenzt und jede
+einzelne durch -timeout.`,
+	HelpUsage:       "Verwendung: zoneaudit -d <Domain> [-c n] [-rate n] [-timeout Dauer] [-json] [-lang en|fr|de]",
+	HelpOptions:     "Optionen:",
+	HelpDefault:     "(Standard: %s)",
+	FlagDomain:      "Zu scannende `Domain` (z. B. example.com)",
+	FlagConcurrency: "Anzahl paralleler Worker, `n` von 1 bis %d",
+	FlagRate:        "Höchstzahl an Anfragen pro Sekunde über DNS, TLS, HTTP und RDAP, `n` von 1 bis %d",
+	FlagTimeout:     "Zeitlimit je Anfrage, eine `Dauer` von %s bis %s",
+	FlagJSON:        "Ergebnisse als JSON ausgeben (Schemaversion %s)",
+	FlagLang:        "Sprache als `Code` (en, fr oder de); Standard ist die Umgebungsvariable LANG",
+	FlagVersion:     "Version anzeigen und beenden",
 }
 
 // GetStrings returns the strings for the language in the LANG environment variable.

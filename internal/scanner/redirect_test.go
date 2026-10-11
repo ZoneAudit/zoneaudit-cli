@@ -9,6 +9,7 @@ import (
 	"github.com/ZoneAudit/zoneaudit-cli/internal/scannertest"
 )
 
+// Addresses are checked when connecting, not here; see dial_internal_test.go.
 func TestRedirectOutsideScopeIsNotFollowed(t *testing.T) {
 	targets := []string{
 		"https://attacker.example.net/",            // another domain
@@ -17,17 +18,12 @@ func TestRedirectOutsideScopeIsNotFollowed(t *testing.T) {
 		"http://127.0.0.1/",                        // loopback address
 		"http://169.254.169.254/latest/meta-data/", // cloud metadata (link-local)
 		"http://[::1]/",                            // IPv6 loopback
-		"https://internal.example.com/",            // in scope, but resolves to a private address
-		"https://linklocal.example.com/",           // in scope, but resolves to a link-local address
 		"https://example.com:8443/",                // another port
 		"ftp://example.com/",                       // another scheme
-		"https://unresolvable.example.com/",        // in scope, but does not resolve
 	}
 	for _, target := range targets {
 		t.Run(target, func(t *testing.T) {
 			f := newFixture(t, nil)
-			f.resolver.Host["internal.example.com"] = []string{"10.0.0.5"}
-			f.resolver.Host["linklocal.example.com"] = []string{"23.192.228.90", "169.254.169.254"}
 			f.transport.Routes["https://example.com"] = scannertest.RawResponse(302, map[string]string{"Location": target}, "")
 			ctx := scanner.WithScope(context.Background(), "example.com")
 			res := f.s.CheckSubdomain(ctx, "example.com")

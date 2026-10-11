@@ -72,21 +72,39 @@ func langArg(args []string) string {
 func newFlagSet(stderr io.Writer, o *options, T i18n.LanguageStrings) *flag.FlagSet {
 	fs := flag.NewFlagSet("zoneaudit", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.StringVar(&o.domain, "d", "", "Target domain to scan (e.g. example.com)")
-	fs.IntVar(&o.concurrency, "c", scanner.DefaultConcurrency, fmt.Sprintf("Number of concurrent workers (1 to %d)", scanner.MaxConcurrency))
-	fs.IntVar(&o.rate, "rate", scanner.DefaultRate, fmt.Sprintf("Maximum requests per second across DNS, TLS, HTTP and RDAP (1 to %d)", scanner.MaxRate))
-	fs.DurationVar(&o.timeout, "timeout", scanner.DefaultTimeout, fmt.Sprintf("Timeout for each request (%s to %s)", scanner.MinTimeout, scanner.MaxTimeout))
-	fs.BoolVar(&o.asJSON, "json", false, "Output results as JSON (schema version "+scanner.SchemaVersion+")")
-	fs.StringVar(&o.lang, "lang", "", "Language override (en, fr, de); defaults to the LANG environment variable")
-	fs.BoolVar(&o.version, "version", false, "Print the version and exit")
+	fs.StringVar(&o.domain, "d", "", T.FlagDomain)
+	fs.IntVar(&o.concurrency, "c", scanner.DefaultConcurrency, fmt.Sprintf(T.FlagConcurrency, scanner.MaxConcurrency))
+	fs.IntVar(&o.rate, "rate", scanner.DefaultRate, fmt.Sprintf(T.FlagRate, scanner.MaxRate))
+	fs.DurationVar(&o.timeout, "timeout", scanner.DefaultTimeout, fmt.Sprintf(T.FlagTimeout, scanner.MinTimeout, scanner.MaxTimeout))
+	fs.BoolVar(&o.asJSON, "json", false, fmt.Sprintf(T.FlagJSON, scanner.SchemaVersion))
+	fs.StringVar(&o.lang, "lang", "", T.FlagLang)
+	fs.BoolVar(&o.version, "version", false, T.FlagVersion)
 	fs.Usage = func() {
 		out := fs.Output()
 		fmt.Fprintf(out, "ZoneAudit Community Edition v%s\n\n", scanner.Version)
 		fmt.Fprintf(out, "%s\n\n", T.ResponsibleUse)
-		fmt.Fprintf(out, "Usage: zoneaudit -d <domain> [-c N] [-rate N] [-timeout D] [-json] [-lang en|fr|de]\n\nOptions:\n")
-		fs.PrintDefaults()
+		fmt.Fprintf(out, "%s\n\n%s\n", T.HelpUsage, T.HelpOptions)
+		printDefaults(out, fs, T)
 	}
 	return fs
+}
+
+// printDefaults lists the flags like flag.PrintDefaults, but with the
+// "(default ...)" note taken from the language strings, so the whole help
+// follows -lang.
+func printDefaults(out io.Writer, fs *flag.FlagSet, T i18n.LanguageStrings) {
+	fs.VisitAll(func(f *flag.Flag) {
+		placeholder, usage := flag.UnquoteUsage(f)
+		line := "  -" + f.Name
+		if placeholder != "" {
+			line += " " + placeholder
+		}
+		fmt.Fprintf(out, "%s\n    \t%s", line, usage)
+		if f.DefValue != "" && f.DefValue != "false" {
+			fmt.Fprintf(out, " "+T.HelpDefault, f.DefValue)
+		}
+		fmt.Fprintln(out)
+	})
 }
 
 // run is the testable body of main. cfg supplies injectable resolvers and

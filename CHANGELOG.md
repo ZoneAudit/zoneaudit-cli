@@ -38,13 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The per-request HTTP timeout starts after the rate limiter's wait, so requests queued at a low `-rate` no longer time out before they are sent.
 - A `v=spf1`-like prefix such as `v=spf10` is no longer counted as SPF.
 - Values from DNS and web servers (records, `Server` headers, page titles, the DMARC policy) are escaped in the text report, so they cannot inject terminal control sequences. JSON output is unchanged.
-- HTTP redirects are followed only within the scanned domain and its subdomains, on the standard ports, and never to private, loopback, link-local or other non-public addresses; otherwise the redirect response is reported.
+- HTTP redirects are followed only within the scanned domain and its subdomains, on the standard ports, and never to an IP address; otherwise the redirect response is reported.
+- TLS handshakes and HTTP requests connect only to public addresses. The address is checked when connecting, so a DNS answer that changes between lookups (DNS rebinding) cannot reach a loopback, private or link-local address such as a cloud metadata service. Banner requests therefore connect directly, without an HTTP proxy.
 - Ctrl+C during the initial root-domain check writes the partial report and exits with 130, rather than reporting a resolution failure.
 - The scan duration includes the root-domain check, whose lookups were already counted in `requests`.
 - The page title is no longer read from tags that merely start with "title", such as `<titlefake>`.
 - `requests` counts only requests that were allowed to start, not ones cancelled while waiting for the rate limiter.
 - `total_scanned` counts the wordlist names actually tried, so an interrupted scan's report matches docs/json-output.md.
-- The responsible-use notice in `--help` follows `-lang` (English, French or German).
+- `--help` follows `-lang` (English, French or German): the responsible-use notice, usage line, option descriptions and defaults.
 
 ## [0.2.0] - 2026-06-03
 

@@ -17,7 +17,7 @@ The CLI shows raw, read-only findings; the ZoneAudit service turns them into a p
 
 **Only scan domains you own or are authorised to assess.**
 
-For each host it finds, ZoneAudit resolves DNS records, makes one TLS handshake and one light HTTP(S) request (plain HTTP only if HTTPS does not answer, following at most 2 redirects within the scanned domain). It also makes one RDAP query for the domain's expiry date. It does not scan ports or attempt access.
+For each host it finds, ZoneAudit resolves DNS records and, if the host has a public address, makes one TLS handshake and one light HTTP(S) request (plain HTTP only if HTTPS does not answer, following at most 2 redirects within the scanned domain). It also makes one RDAP query for the domain's expiry date. It does not scan ports or attempt access.
 
 Every request (each DNS lookup, TLS handshake, HTTP request and the RDAP query) goes through one rate limit, 25 requests per second by default (`-rate`, at most 100), and each has its own timeout, 5 seconds by default (`-timeout`). The same notice is at the top of `zoneaudit --help`.
 

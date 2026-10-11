@@ -67,6 +67,7 @@ type Scanner struct {
 	http     *http.Client // banners: accepts invalid certificates so they can be reported
 	rdap     *http.Client // RDAP: verifies certificates
 	certs    CertFetcher
+	dialer   *publicDialer // default banner and TLS connections: public addresses only
 	now      func() time.Time
 }
 
@@ -112,6 +113,7 @@ func New(cfg Config) (*Scanner, error) {
 		base = net.DefaultResolver
 	}
 	s.resolver = &limitedResolver{base: base, limiter: s.limiter, timeout: cfg.Timeout}
+	s.dialer = newPublicDialer(base, cfg.Timeout)
 
 	var client http.Client
 	if cfg.HTTPClient != nil {
@@ -119,7 +121,10 @@ func New(cfg Config) (*Scanner, error) {
 	} else {
 		client = http.Client{
 			Transport: &http.Transport{
-				Proxy:               http.ProxyFromEnvironment,
+				// No proxy: connections go direct, so the dialer can check
+				// the address actually connected to. The transport still
+				// uses the request's host name for TLS SNI and the Host header.
+				DialContext:         s.dialer.DialContext,
 				TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, // read banners even when the certificate is invalid
 				TLSHandshakeTimeout: cfg.Timeout,
 				DisableKeepAlives:   true,
@@ -151,7 +156,7 @@ func New(cfg Config) (*Scanner, error) {
 
 	certs := cfg.CertFetcher
 	if certs == nil {
-		certs = tlsCertFetcher{timeout: cfg.Timeout}
+		certs = tlsCertFetcher{dialer: s.dialer}
 	}
 	s.certs = &limitedCertFetcher{base: certs, limiter: s.limiter, timeout: cfg.Timeout}
 	return s, nil

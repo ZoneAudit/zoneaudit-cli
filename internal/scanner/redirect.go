@@ -26,16 +26,15 @@ func normaliseHost(h string) string {
 
 // scopedRedirectPolicy wraps next (or, if nil, the default cap of
 // maxRedirects) so that a redirect is not followed when it leaves the scan
-// scope, uses another scheme or port, or points at a loopback, private,
-// link-local or otherwise non-public address. The redirect response itself
-// is returned instead, so its status is reported.
+// scope, uses another scheme or port, or points at an IP address. The
+// redirect response itself is returned instead, so its status is reported.
 func (s *Scanner) scopedRedirectPolicy(next func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
 	return func(req *http.Request, via []*http.Request) error {
 		scope, _ := req.Context().Value(scopeKey{}).(string)
 		if scope == "" && len(via) > 0 {
 			scope = normaliseHost(via[0].URL.Hostname())
 		}
-		if !s.redirectAllowed(req.Context(), req.URL, scope) {
+		if !redirectAllowed(req.URL, scope) {
 			return http.ErrUseLastResponse
 		}
 		if next != nil {
@@ -48,9 +47,8 @@ func (s *Scanner) scopedRedirectPolicy(next func(*http.Request, []*http.Request)
 	}
 }
 
-// redirectAllowed reports whether a redirect to u stays inside scope and
-// resolves only to public addresses.
-func (s *Scanner) redirectAllowed(ctx context.Context, u *url.URL, scope string) bool {
+// redirectAllowed reports whether a redirect to u stays inside scope.
+func redirectAllowed(u *url.URL, scope string) bool {
 	if scope == "" || (u.Scheme != "https" && u.Scheme != "http") {
 		return false
 	}
@@ -58,20 +56,10 @@ func (s *Scanner) redirectAllowed(ctx context.Context, u *url.URL, scope string)
 		return false
 	}
 	host := normaliseHost(u.Hostname())
-	if net.ParseIP(host) != nil || !InScope(host, scope) {
-		return false // an IP literal is never inside a domain's scope
-	}
-	addrs, err := s.resolver.LookupHost(ctx, host)
-	if err != nil || len(addrs) == 0 {
-		return false
-	}
-	for _, a := range addrs {
-		ip := net.ParseIP(a)
-		if ip == nil || !IsPublicIP(ip) {
-			return false
-		}
-	}
-	return true
+	// An IP literal is never inside a domain's scope. The addresses a host
+	// name resolves to are checked when connecting (see publicDialer), so
+	// a second DNS answer cannot differ from the one that was checked.
+	return net.ParseIP(host) == nil && InScope(host, scope)
 }
 
 // InScope reports whether host is domain or one of its subdomains.
