@@ -2,7 +2,9 @@ package scanner
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"sort"
 	"strings"
 )
@@ -14,10 +16,28 @@ const (
 	RecordTXT     = "TXT"
 	RecordMX      = "MX"
 	RecordRisk    = "RISK"
+	// RecordUnchecked lists checks that could not be completed because a
+	// lookup failed (timeout, SERVFAIL, cancellation). Added in schema 1.1.
+	RecordUnchecked = "UNCHECKED"
 
 	// RiskDanglingCNAME flags a CNAME whose target no longer resolves.
 	RiskDanglingCNAME = "DANGLING-CNAME"
 )
+
+// Lookup outcomes reported for SPF and DMARC (schema 1.1).
+const (
+	StatusPresent     = "present"
+	StatusMissing     = "missing"
+	StatusUnavailable = "unavailable" // the lookup failed, so presence is unknown
+)
+
+// isAuthoritativeAbsence reports whether err means the name or the record
+// does not exist (NXDOMAIN or an answer with no records), as opposed to a
+// failure such as a timeout, SERVFAIL or cancellation.
+func isAuthoritativeAbsence(err error) bool {
+	var dnsErr *net.DNSError
+	return errors.As(err, &dnsErr) && dnsErr.IsNotFound && !dnsErr.IsTimeout && !dnsErr.IsTemporary
+}
 
 // CheckSubdomain performs the DNS lookups for one host and, when it has an
 // address, one TLS handshake and a light HTTP(S) request.
@@ -48,9 +68,15 @@ func (s *Scanner) CheckSubdomain(ctx context.Context, fqdn string) Result {
 		res.Records = append(res.Records, Record{Type: RecordCNAME, Value: []string{target}})
 
 		// A CNAME whose target does not resolve can be taken over by whoever
-		// registers or claims that target.
-		if addrs, err := s.resolver.LookupHost(ctx, target); err != nil || len(addrs) == 0 {
+		// registers or claims that target. Only an authoritative "does not
+		// exist" or an empty answer counts; any other failure leaves the
+		// risk undetermined.
+		addrs, err := s.resolver.LookupHost(ctx, target)
+		switch {
+		case err == nil && len(addrs) == 0, err != nil && isAuthoritativeAbsence(err):
 			res.Records = append(res.Records, Record{Type: RecordRisk, Value: []string{RiskDanglingCNAME}})
+		case err != nil:
+			res.Records = append(res.Records, Record{Type: RecordUnchecked, Value: []string{RiskDanglingCNAME}})
 		}
 	}
 
@@ -93,21 +119,35 @@ type EmailSecurity struct {
 	// DMARCWeak is true when a DMARC record exists but its policy is "none"
 	// (monitoring only), so spoofed email is not blocked.
 	DMARCWeak bool `json:"dmarc_weak"`
+	// SPFStatus and DMARCStatus are "present", "missing" or "unavailable"
+	// (the lookup failed, so SPF or DMARC may still exist). Schema 1.1.
+	SPFStatus   string `json:"spf_status"`
+	DMARCStatus string `json:"dmarc_status"`
 }
 
 // CheckEmailSecurity looks up SPF on the domain and DMARC on _dmarc.<domain>.
+// A failed lookup is reported as unavailable, never as missing.
 func (s *Scanner) CheckEmailSecurity(ctx context.Context, domain string) EmailSecurity {
-	txts, _ := s.resolver.LookupTXT(ctx, domain)
-	dmarc, _ := s.resolver.LookupTXT(ctx, "_dmarc."+domain)
-	return EvaluateEmailSecurity(txts, dmarc)
+	txts, rootErr := s.resolver.LookupTXT(ctx, domain)
+	dmarc, dmarcErr := s.resolver.LookupTXT(ctx, "_dmarc."+domain)
+	es := EvaluateEmailSecurity(txts, dmarc)
+	if rootErr != nil && !isAuthoritativeAbsence(rootErr) {
+		es.SPFStatus = StatusUnavailable
+	}
+	if dmarcErr != nil && !isAuthoritativeAbsence(dmarcErr) {
+		es.DMARCStatus = StatusUnavailable
+	}
+	return es
 }
 
-// EvaluateEmailSecurity interprets the root TXT records and the _dmarc TXT records.
+// EvaluateEmailSecurity interprets the root TXT records and the _dmarc TXT
+// records, assuming both lookups were answered.
 func EvaluateEmailSecurity(rootTXT, dmarcTXT []string) EmailSecurity {
-	var es EmailSecurity
+	es := EmailSecurity{SPFStatus: StatusMissing, DMARCStatus: StatusMissing}
 	for _, txt := range rootTXT {
 		if hasTag(txt, "v=spf1") {
 			es.SPF = true
+			es.SPFStatus = StatusPresent
 		}
 	}
 	for _, txt := range dmarcTXT {
@@ -115,6 +155,7 @@ func EvaluateEmailSecurity(rootTXT, dmarcTXT []string) EmailSecurity {
 			continue
 		}
 		es.DMARC = true
+		es.DMARCStatus = StatusPresent
 		for _, part := range strings.Split(txt, ";") {
 			kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
 			if len(kv) == 2 && strings.EqualFold(strings.TrimSpace(kv[0]), "p") {

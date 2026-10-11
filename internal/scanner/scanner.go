@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"regexp"
@@ -125,14 +126,15 @@ func New(cfg Config) (*Scanner, error) {
 			},
 		}
 	}
-	if client.Timeout == 0 || client.Timeout > cfg.Timeout {
-		client.Timeout = cfg.Timeout
-	}
+	// The per-request timeout is applied by limitedTransport after the rate
+	// limiter's wait, so a client-wide Timeout (which would include the
+	// wait) is not used.
+	client.Timeout = 0
 	baseRT := client.Transport
 	if baseRT == nil {
 		baseRT = http.DefaultTransport
 	}
-	client.Transport = &limitedTransport{base: baseRT, limiter: s.limiter}
+	client.Transport = &limitedTransport{base: baseRT, limiter: s.limiter, timeout: cfg.Timeout}
 	if client.CheckRedirect == nil {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 3 {
@@ -147,8 +149,7 @@ func New(cfg Config) (*Scanner, error) {
 		s.rdap = s.http
 	} else {
 		s.rdap = &http.Client{
-			Timeout:   cfg.Timeout,
-			Transport: &limitedTransport{base: http.DefaultTransport, limiter: s.limiter},
+			Transport: &limitedTransport{base: http.DefaultTransport, limiter: s.limiter, timeout: cfg.Timeout},
 		}
 	}
 
@@ -201,7 +202,8 @@ func NormaliseDomain(in string) (string, error) {
 	return d, nil
 }
 
-// daysUntil returns whole days from now until t (negative once t has passed).
+// daysUntil returns whole days from now until t, rounded down, so it is
+// negative as soon as t has passed (an expiry one hour ago gives -1).
 func daysUntil(now, t time.Time) int {
-	return int(t.Sub(now).Hours() / 24)
+	return int(math.Floor(t.Sub(now).Hours() / 24))
 }

@@ -164,8 +164,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scann
 	results.DurationMS = duration.Milliseconds()
 	results.Requests = s.RequestCount()
 
+	// An interrupted scan still writes the partial report, then exits with
+	// 130 (the conventional status for SIGINT) so callers can tell.
+	code := 0
 	if ctx.Err() != nil {
 		fmt.Fprintln(stderr, "interrupted: results are incomplete")
+		code = exitInterrupted
 	}
 
 	if o.asJSON {
@@ -176,11 +180,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scann
 			fmt.Fprintf(stderr, "error: %v\n", err)
 			return 1
 		}
-		return 0
+		return code
 	}
 	renderText(stdout, T, results, duration)
-	return 0
+	return code
 }
+
+// exitInterrupted is returned when the scan was cancelled (Ctrl+C).
+const exitInterrupted = 130
 
 // renderText writes the terminal report. Its last line is the request-access line.
 func renderText(w io.Writer, T i18n.LanguageStrings, results scanner.ScanResults, duration time.Duration) {
@@ -208,6 +215,10 @@ func renderText(w io.Writer, T i18n.LanguageStrings, results scanner.ScanResults
 			if i == 0 || rec.Type == scanner.RecordAddress || len(rec.Value) == 0 {
 				continue
 			}
+			if rec.Type == scanner.RecordUnchecked {
+				fmt.Fprintf(&line, "| %s: %s ", rec.Value[0], T.CouldNotCheck)
+				continue
+			}
 			fmt.Fprintf(&line, "| %s: %v ", rec.Type, rec.Value[0])
 		}
 
@@ -222,21 +233,30 @@ func renderText(w io.Writer, T i18n.LanguageStrings, results scanner.ScanResults
 	}
 
 	if es := results.EmailSecurity; es != nil {
-		spf, dmarc := T.Missing, T.Missing
-		if es.SPF {
-			spf = T.Present
-		}
-		if es.DMARC {
-			dmarc = T.Present
-			if es.DMARCPolicy != "" {
-				dmarc += " (p=" + es.DMARCPolicy + ")"
+		label := func(status string) string {
+			switch status {
+			case scanner.StatusPresent:
+				return T.Present
+			case scanner.StatusUnavailable:
+				return T.Unavailable
 			}
+			return T.Missing
+		}
+		spf, dmarc := label(es.SPFStatus), label(es.DMARCStatus)
+		if es.DMARC && es.DMARCPolicy != "" {
+			dmarc += " (p=" + es.DMARCPolicy + ")"
 		}
 		fmt.Fprintf(w, "\n[*] "+T.EmailSecurity+"\n", spf, dmarc)
-		if !es.DMARC {
+		switch {
+		case es.DMARCStatus == scanner.StatusUnavailable:
+			fmt.Fprintf(w, "[?] %s\n", T.DMARCUnavailable)
+		case !es.DMARC:
 			fmt.Fprintf(w, "[!] %s\n", T.DMARCMissing)
-		} else if es.DMARCWeak {
+		case es.DMARCWeak:
 			fmt.Fprintf(w, "[!] %s\n", T.DMARCNone)
+		}
+		if es.SPFStatus == scanner.StatusUnavailable {
+			fmt.Fprintf(w, "[?] %s\n", T.SPFUnavailable)
 		}
 	}
 

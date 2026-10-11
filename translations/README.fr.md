@@ -1,7 +1,7 @@
 # ZoneAudit™ Community Edition
 
 [![ci](https://github.com/ZoneAudit/zoneaudit-cli/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ZoneAudit/zoneaudit-cli/actions/workflows/ci.yml?query=branch%3Amain)
-[![MIT licence](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![MIT licence](https://img.shields.io/badge/licence-MIT-blue.svg)](../LICENSE)
 
 > **Langues :** [English](README.en.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
 
@@ -95,13 +95,13 @@ Voici la sortie du CLI sur ses données de test : les données RDAP de `example.
 zoneaudit -d example.com -json
 ```
 
-Le rapport JSON comporte un champ `schema_version` (actuellement `"1.0"`). Au sein de la version majeure 1, aucun champ n'est supprimé, renommé ni ne change de sens ; de nouveaux champs facultatifs peuvent être ajoutés, ce qui augmente le numéro mineur. Le format est décrit dans [docs/json-output.md](../docs/json-output.md) (en anglais).
+Le rapport JSON comporte un champ `schema_version` (actuellement `"1.1"`). Au sein de la version majeure 1, aucun champ n'est supprimé, renommé ni ne change de sens ; de nouveaux champs facultatifs peuvent être ajoutés, ce qui augmente le numéro mineur. Le format est décrit dans [docs/json-output.md](../docs/json-output.md) (en anglais).
 
 Un rapport abrégé issu des mêmes données de test :
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "tool": { "name": "zoneaudit-cli", "version": "0.3.0" },
   "domain": "example.com",
   "generated_at": "2026-10-09T12:00:00Z",
@@ -109,7 +109,7 @@ Un rapport abrégé issu des mêmes données de test :
   "settings": { "concurrency": 10, "rate_per_second": 25, "timeout_seconds": 5 },
   "requests": 590,
   "domain_expiry": { "expiry_date": "2027-08-13T04:00:00Z", "days_left": 307, "is_critical": false },
-  "email_security": { "spf": true, "dmarc": true, "dmarc_policy": "none", "dmarc_weak": true },
+  "email_security": { "spf": true, "dmarc": true, "dmarc_policy": "none", "dmarc_weak": true, "spf_status": "present", "dmarc_status": "present" },
   "active": [
     {
       "subdomain": "old.example.com",

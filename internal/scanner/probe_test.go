@@ -54,6 +54,18 @@ func TestCertificateExpired(t *testing.T) {
 	}
 }
 
+func TestCertificateExpiredLessThanADayAgo(t *testing.T) {
+	f := newFixture(t, func(c *scanner.Config) {
+		c.CertFetcher = &scannertest.Certs{Chains: map[string][]*x509.Certificate{
+			"example.com": {scannertest.Certificate("example.com", pkix.Name{CommonName: "Old CA"}, scannertest.Now.Add(-time.Hour))},
+		}}
+	})
+	res := f.s.CheckSubdomain(context.Background(), "example.com")
+	if res.SSL == nil || res.SSL.DaysLeft != -1 {
+		t.Errorf("expired an hour ago: %+v, want -1 days (not 0)", res.SSL)
+	}
+}
+
 func TestNoCertificateWhenHandshakeFails(t *testing.T) {
 	f := newFixture(t, nil)
 	res := f.s.CheckSubdomain(context.Background(), "shop.example.com")

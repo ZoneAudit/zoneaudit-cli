@@ -17,9 +17,11 @@ und dieses Projekt hält sich an [Semantic Versioning](https://semver.org/spec/v
 - **Rücksichtsvolles Scannen**: `-rate` begrenzt die Anfragen pro Sekunde über DNS, TLS, HTTP und RDAP (Standard 25, höchstens 100), und `-timeout` begrenzt jede Anfrage (Standard 5 s). Anfragen weisen sich mit dem User-Agent `zoneaudit-cli/<version>` aus.
 - **Signierte Releases**: `checksums.txt` wird mit der schlüssellosen Signatur von cosign signiert (GitHub OIDC, keine gespeicherten Schlüssel), und zu jedem Archiv gibt es eine SPDX-Stückliste.
 - **Pakete**: Der Release-Workflow erzeugt einen Homebrew-Cask und ein Scoop-Manifest und veröffentlicht sie, sobald die Tap- und Bucket-Repositorys existieren.
-- **Stabile JSON-Ausgabe** mit dem Feld `schema_version` (`"1.0"`), beschrieben in `docs/json-output.md`; der Bericht enthält außerdem Zeitpunkt, Dauer, verwendete Grenzen und Anzahl der Anfragen.
+- **Stabile JSON-Ausgabe** mit dem Feld `schema_version` (`"1.1"`), beschrieben in `docs/json-output.md`; der Bericht enthält außerdem Zeitpunkt, Dauer, verwendete Grenzen und Anzahl der Anfragen.
 - `SECURITY.md`, `CONTRIBUTING.md` und ein Beispielbericht im README.
 - Option `-version`.
+- Ein unterbrochener Scan (Strg+C) schreibt trotzdem den Teilbericht und endet mit Status 130.
+- Eine fehlgeschlagene DNS-Abfrage wird als solche gemeldet: SPF und DMARC zeigen `unavailable` (nicht fehlend, ohne Fälschungswarnung), und ein CNAME, dessen Ziel nicht abgefragt werden konnte, wird als `UNCHECKED` statt als hängend markiert.
 
 ### Geändert
 - `--help` beginnt mit dem Hinweis zur verantwortungsvollen Nutzung.
@@ -32,6 +34,8 @@ und dieses Projekt hält sich an [Semantic Versioning](https://semver.org/spec/v
 ### Behoben
 - Der Release-Workflow richtet Go mit `actions/setup-go` ein (zuvor lief `actions/checkout` zweimal).
 - RDAP-Anfragen prüfen das Zertifikat des Servers.
+- Verbleibende Tage eines abgelaufenen Zertifikats oder einer Domain werden abgerundet: Ein Ablauf vor weniger als einem Tag ergibt -1, nicht 0.
+- Das HTTP-Zeitlimit je Anfrage beginnt erst nach der Wartezeit der Ratenbegrenzung, sodass bei niedriger `-rate` wartende Anfragen nicht mehr vor dem Senden ablaufen.
 - Ein `v=spf1`-ähnliches Präfix wie `v=spf10` zählt nicht mehr als SPF.
 
 ## [0.2.0] - 2026-06-03

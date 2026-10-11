@@ -95,13 +95,13 @@ This is the CLI's output against its test fixtures: the RDAP data for `example.c
 zoneaudit -d example.com -json
 ```
 
-The JSON report has a `schema_version` field (currently `"1.0"`). Within major version 1, fields are never removed, renamed or given a new meaning; new optional fields may be added, which raises the minor number. The format is described in [docs/json-output.md](../docs/json-output.md).
+The JSON report has a `schema_version` field (currently `"1.1"`). Within major version 1, fields are never removed, renamed or given a new meaning; new optional fields may be added, which raises the minor number. The format is described in [docs/json-output.md](../docs/json-output.md).
 
 An abridged report from the same fixtures:
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "tool": { "name": "zoneaudit-cli", "version": "0.3.0" },
   "domain": "example.com",
   "generated_at": "2026-10-09T12:00:00Z",
@@ -109,7 +109,7 @@ An abridged report from the same fixtures:
   "settings": { "concurrency": 10, "rate_per_second": 25, "timeout_seconds": 5 },
   "requests": 590,
   "domain_expiry": { "expiry_date": "2027-08-13T04:00:00Z", "days_left": 307, "is_critical": false },
-  "email_security": { "spf": true, "dmarc": true, "dmarc_policy": "none", "dmarc_weak": true },
+  "email_security": { "spf": true, "dmarc": true, "dmarc_policy": "none", "dmarc_weak": true, "spf_status": "present", "dmarc_status": "present" },
   "active": [
     {
       "subdomain": "old.example.com",

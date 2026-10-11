@@ -163,3 +163,75 @@ func TestVersionFlag(t *testing.T) {
 		t.Errorf("exit %d, output %q", code, out)
 	}
 }
+
+// cancellingResolver cancels the scan on its first TXT lookup, which comes
+// after the root domain check, to simulate Ctrl+C part-way through.
+type cancellingResolver struct {
+	*scannertest.Resolver
+	cancel context.CancelFunc
+}
+
+func (r cancellingResolver) LookupTXT(ctx context.Context, name string) ([]string, error) {
+	r.cancel()
+	return r.Resolver.LookupTXT(ctx, name)
+}
+
+func TestInterruptedScanExits130WithPartialReport(t *testing.T) {
+	for _, mode := range []string{"text", "json"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			cfg := fixtureConfig()
+			cfg.Resolver = cancellingResolver{Resolver: scannertest.LoadResolver("example.com"), cancel: cancel}
+			args := []string{"-d", "example.com", "-rate", "100", "-lang", "en"}
+			if mode == "json" {
+				args = append(args, "-json")
+			}
+			var out, errOut bytes.Buffer
+			code := run(ctx, args, &out, &errOut, cfg)
+			if code != 130 {
+				t.Errorf("exit %d, want 130", code)
+			}
+			if !strings.Contains(errOut.String(), "interrupted") {
+				t.Errorf("stderr should say the scan was interrupted: %q", errOut.String())
+			}
+			if mode == "json" {
+				var rep scanner.ScanResults
+				if err := json.Unmarshal(out.Bytes(), &rep); err != nil || rep.Domain != "example.com" {
+					t.Errorf("partial JSON report not written: %v\n%s", err, out.String())
+				}
+			} else if !strings.HasSuffix(strings.TrimRight(out.String(), "\n"), i18n.For("en").RequestAccess) {
+				t.Errorf("partial text report not written:\n%s", out.String())
+			}
+		})
+	}
+}
+
+func TestLookupFailuresAreNotReportedAsMissing(t *testing.T) {
+	cfg := fixtureConfig()
+	r := scannertest.LoadResolver("example.com")
+	r.Errors = map[string]error{
+		"txt _dmarc.example.com":                 scannertest.ServFail("_dmarc.example.com"),
+		"host example-old.herokudns.example.org": scannertest.Timeout("example-old.herokudns.example.org"),
+	}
+	cfg.Resolver = r
+	var out, errOut bytes.Buffer
+	if code := run(context.Background(), []string{"-d", "example.com", "-rate", "100", "-lang", "en"}, &out, &errOut, cfg); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	text := out.String()
+	for _, want := range []string{
+		"DMARC could not check (lookup failed)",
+		"[?] DMARC could not be checked",
+		"| DANGLING-CNAME: could not check (lookup failed)",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("missing %q in:\n%s", want, text)
+		}
+	}
+	for _, unwanted := range []string{"No DMARC record", "RISK: DANGLING-CNAME"} {
+		if strings.Contains(text, unwanted) {
+			t.Errorf("a failed lookup must not produce %q:\n%s", unwanted, text)
+		}
+	}
+}
