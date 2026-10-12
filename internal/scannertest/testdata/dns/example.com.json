@@ -1,0 +1,31 @@
+{
+  "_comment": "Synthetic DNS answers for the reserved example.com domain, in the shape the resolver returns them. Used by the tests instead of the network.",
+  "host": {
+    "example.com": ["2600:1406:3a00:21::173e:2e65", "23.192.228.80"],
+    "www.example.com": ["23.192.228.84"],
+    "shop.example.com": ["192.0.2.10"],
+    "mx1.example.com": ["192.0.2.25"],
+    "mx2.example.com": ["192.0.2.26"],
+    "shop.provider.example.net": ["192.0.2.10"]
+  },
+  "cname": {
+    "shop.example.com": "shop.provider.example.net.",
+    "old.example.com": "example-old.herokudns.example.org."
+  },
+  "txt": {
+    "example.com": ["v=spf1 include:_spf.example.com -all", "google-site-verification=abc123"],
+    "_dmarc.example.com": ["v=DMARC1; p=none; rua=mailto:dmarc@example.com"],
+    "mail.example.com": ["v=spf1 -all"]
+  },
+  "mx": {
+    "example.com": [
+      {"host": "mx2.example.com.", "pref": 20},
+      {"host": "mx1.example.com.", "pref": 10}
+    ],
+    "mail.example.com": [{"host": "mx1.example.com.", "pref": 10}]
+  },
+  "ns": {
+    "example.com": ["a.iana-servers.net.", "b.iana-servers.net."],
+    "mailonly.example": ["ns1.mailonly.example."]
+  }
+}

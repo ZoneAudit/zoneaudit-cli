@@ -1,0 +1,175 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: lint (gofmt, go vet, staticcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          # staticcheck 2026.2.1 (v0.8.1) reads Go 1.26 export data; move to
+          # stable once a staticcheck release supports Go 1.27.
+          go-version: "1.26"
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then echo "run gofmt on:"; echo "$unformatted"; exit 1; fi
+      - name: go vet
+        run: go vet ./...
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@v0.8.1
+          "$(go env GOPATH)/bin/staticcheck" ./...
+      - name: vendored installers are unchanged copies
+        run: cd scripts/install-test && sha256sum -c SHA256SUMS
+
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux/amd64, os: ubuntu-latest, go: stable, race: true }
+          - { name: linux/amd64 go.mod minimum, os: ubuntu-latest, go: go.mod, race: false }
+          - { name: linux/arm64, os: ubuntu-24.04-arm, go: stable, race: true }
+          - { name: darwin/arm64, os: macos-latest, go: stable, race: true }
+          - { name: darwin/amd64, os: macos-15-intel, go: stable, race: true }
+          - { name: windows/amd64, os: windows-latest, go: stable, race: false }
+          - { name: windows/arm64, os: windows-11-arm, go: stable, race: false }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go != 'go.mod' && matrix.go || '' }}
+          go-version-file: ${{ matrix.go == 'go.mod' && 'go.mod' || '' }}
+      - name: go version
+        run: go version
+      - name: go test
+        shell: bash
+        run: |
+          if [ "${{ matrix.race }}" = "true" ]; then race=-race; else race=; fi
+          go test $race -count=1 ./...
+      - name: build
+        shell: bash
+        run: go build -o zoneaudit-ci ./cmd/zoneaudit && ./zoneaudit-ci -version
+
+  release-dry-run:
+    name: release dry run (GoReleaser snapshot, SBOM, cosign)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # keyless signing; not granted to pull requests from forks
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - uses: anchore/sbom-action/download-syft@v0
+      - uses: sigstore/cosign-installer@v4.1.2
+      - name: decide whether to sign
+        id: sign
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
+            echo "skip=" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=--skip=sign" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean ${{ steps.sign.outputs.skip }}
+      - name: verify the checksum signature
+        if: steps.sign.outputs.skip == ''
+        run: |
+          cosign verify-blob \
+            --bundle dist/checksums.txt.sigstore.json \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/\.github/workflows/ci\.yml@" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            dist/checksums.txt
+      - name: verify checksums, SBOMs and packages
+        run: |
+          cd dist
+          sha256sum -c checksums.txt
+          for a in zoneaudit-cli_*.tar.gz zoneaudit-cli_*.zip; do
+            test -s "$a.sbom.json" || { echo "missing SBOM for $a"; exit 1; }
+          done
+          grep -q "spdxVersion" zoneaudit-cli_*_linux_amd64.tar.gz.sbom.json
+          test -s homebrew/Casks/zoneaudit.rb
+          test -s scoop/zoneaudit.json
+          ls -l
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-dry-run
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt*
+            dist/*.sbom.json
+            dist/homebrew/
+            dist/scoop/
+          if-no-files-found: error
+          retention-days: 7
+
+  installers:
+    name: installer (${{ matrix.name }})
+    needs: release-dry-run
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: install.sh linux/amd64, os: ubuntu-latest, kind: sh }
+          - { name: install.sh linux/arm64, os: ubuntu-24.04-arm, kind: sh }
+          - { name: install.sh macOS arm64, os: macos-latest, kind: sh }
+          - { name: install.sh macOS amd64, os: macos-15-intel, kind: sh }
+          - { name: install.ps1 Windows PowerShell 5.1 amd64, os: windows-latest, kind: powershell }
+          - { name: install.ps1 Windows PowerShell 5.1 arm64, os: windows-11-arm, kind: powershell }
+          - { name: install.ps1 PowerShell 7 amd64, os: windows-latest, kind: pwsh }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-dry-run
+          path: dist
+      - name: install from this pull request's artefacts
+        if: matrix.kind == 'sh'
+        run: sh scripts/install-test/test-install.sh local dist
+      - name: install from this pull request's artefacts
+        if: matrix.kind == 'powershell'
+        shell: powershell
+        run: .\scripts\install-test\test-install.ps1 -Mode local -Dist dist
+      - name: install from this pull request's artefacts
+        if: matrix.kind == 'pwsh'
+        shell: pwsh
+        run: ./scripts/install-test/test-install.ps1 -Mode local -Dist dist
+      - name: install the latest published release
+        if: matrix.kind == 'sh'
+        run: sh scripts/install-test/test-install.sh live
+      - name: install the latest published release
+        if: matrix.kind == 'powershell'
+        shell: powershell
+        run: .\scripts\install-test\test-install.ps1 -Mode live
+      - name: install the latest published release
+        if: matrix.kind == 'pwsh'
+        shell: pwsh
+        run: ./scripts/install-test/test-install.ps1 -Mode live
