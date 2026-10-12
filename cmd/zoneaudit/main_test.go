@@ -169,6 +169,13 @@ func TestVersionFlag(t *testing.T) {
 	}
 }
 
+func TestVersionSubcommand(t *testing.T) {
+	code, out, _ := runCLI(t, "version")
+	if code != 0 || strings.TrimSpace(out) != "zoneaudit "+scanner.Version {
+		t.Errorf("exit %d, output %q", code, out)
+	}
+}
+
 // cancellingResolver cancels the scan on its first TXT lookup, which comes
 // after the root domain check, to simulate Ctrl+C part-way through.
 type cancellingResolver struct {

@@ -110,6 +110,11 @@ func printDefaults(out io.Writer, fs *flag.FlagSet, T i18n.LanguageStrings) {
 // run is the testable body of main. cfg supplies injectable resolvers and
 // clients; the flags fill in the limits.
 func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scanner.Config) int {
+	// "zoneaudit version" works as well as the -version flag.
+	if len(args) > 0 && args[0] == "version" {
+		fmt.Fprintf(stdout, "zoneaudit %s\n", scanner.Version)
+		return 0
+	}
 	var o options
 	fs := newFlagSet(stderr, &o, stringsFor(langArg(args)))
 	if err := fs.Parse(args); err != nil {

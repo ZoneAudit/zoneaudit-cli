@@ -85,6 +85,7 @@ zoneaudit -d example.com
 | `-json` | aus | JSON-Bericht statt Text |
 | `-lang` | `LANG` | Ausgabesprache: `en`, `fr` oder `de` |
 | `-version` | | Version anzeigen |
+| `version` | | Version anzeigen (wie `-version`) |
 
 ### Beispielbericht
 

@@ -12,6 +12,7 @@ und dieses Projekt hält sich an [Semantic Versioning](https://semver.org/spec/v
 ## [0.3.0] - 2026-10-09
 
 ### Hinzugefügt
+- **`zoneaudit version`** zeigt die Version an, wie `-version`.
 - **Tests für jede Prüfung**, ausgeführt mit aufgezeichneten Daten ohne Netzwerk: RDAP-Ablauf, Subdomain-Erkennung, A/AAAA-, CNAME-, TXT- und MX-Einträge, Kennzeichnung hängender CNAMEs, SPF und DMARC (einschließlich der Warnung bei `p=none`), Ablauf und Aussteller von Zertifikaten sowie das HTTP-Banner.
 - **CI für jeden Pull-Request**: Tests unter Linux, macOS und Windows, auf amd64 und arm64, dazu `go vet`, staticcheck, ein Release-Probelauf und Prüfungen der Einzeiler-Installer (macOS, Windows PowerShell 5.1, PowerShell 7 und ARM).
 - **Rücksichtsvolles Scannen**: `-rate` begrenzt die Anfragen pro Sekunde über DNS, TLS, HTTP und RDAP (Standard 25, höchstens 100), und `-timeout` begrenzt jede Anfrage (Standard 5 s). Anfragen weisen sich mit dem User-Agent `zoneaudit-cli/<version>` aus.
