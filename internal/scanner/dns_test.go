@@ -105,6 +105,8 @@ func TestEvaluateEmailSecurity(t *testing.T) {
 		{"spf only", []string{"v=spf1 -all"}, nil, scanner.EmailSecurity{SPF: true}},
 		{"spf upper case and spaces", []string{"  V=SPF1 include:x -all"}, nil, scanner.EmailSecurity{SPF: true}},
 		{"not spf", []string{"v=spf10 -all", "spf1 -all"}, nil, scanner.EmailSecurity{}},
+		{"spf version needs a space", []string{"v=spf1;not-spf", "v=spf1,x"}, nil, scanner.EmailSecurity{}},
+		{"bare spf version", []string{"V=SPF1"}, nil, scanner.EmailSecurity{SPF: true}},
 		{"dmarc reject", nil, []string{"v=DMARC1; p=reject; rua=mailto:a@example.com"}, scanner.EmailSecurity{DMARC: true, DMARCPolicy: "reject"}},
 		{"dmarc quarantine spaced", nil, []string{"v=DMARC1 ;  P = Quarantine "}, scanner.EmailSecurity{DMARC: true, DMARCPolicy: "quarantine"}},
 		{"dmarc none warns", []string{"v=spf1 -all"}, []string{"v=DMARC1; p=none"}, scanner.EmailSecurity{SPF: true, DMARC: true, DMARCPolicy: "none", DMARCWeak: true}},

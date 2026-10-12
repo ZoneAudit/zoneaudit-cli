@@ -59,6 +59,15 @@ try {
     if (Test-Path (Join-Path $bad 'zoneaudit.exe')) { throw 'FAIL: binary installed despite checksum mismatch' }
     Stop-Process -Id $server.Id -Force; $server.WaitForExit(); $server = $null
 
+    Write-Host '== a release without checksums.txt must be refused'
+    $server = Start-FakeRelease $Dist @('-nochecksums')
+    $unverified = Join-Path $work 'unverified'
+    $refused = $false
+    try { Invoke-Installer $local $unverified } catch { $refused = $true; Write-Host "refused as expected: $($_.Exception.Message)" }
+    if (-not $refused) { throw 'FAIL: installer installed an unverified archive' }
+    if (Test-Path (Join-Path $unverified 'zoneaudit.exe')) { throw 'FAIL: binary installed without checksums' }
+    Stop-Process -Id $server.Id -Force; $server.WaitForExit(); $server = $null
+
     Write-Host '== install from CI artefacts (irm | iex)'
     $server = Start-FakeRelease $Dist @()
     $bin = Join-Path $work 'bin'

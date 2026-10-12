@@ -9,7 +9,8 @@
 //	GET      /ZoneAudit/zoneaudit-cli/releases/download/<tag>/<file>
 //	GET      /repos/ZoneAudit/zoneaudit-cli/releases/latest  release JSON (tag_name, assets)
 //
-// With -tamper, every checksum in checksums.txt is altered, so the
+// With -tamper, every checksum in checksums.txt is altered, and with
+// -nochecksums the release has no checksums.txt at all; in both cases the
 // installers must refuse to install.
 package main
 
@@ -34,6 +35,7 @@ func main() {
 	dist := flag.String("dist", "dist", "GoReleaser dist directory")
 	addr := flag.String("addr", "127.0.0.1:8765", "listen address")
 	tamper := flag.Bool("tamper", false, "serve altered checksums")
+	noChecksums := flag.Bool("nochecksums", false, "serve a release without checksums.txt")
 	flag.Parse()
 
 	sums, err := os.ReadFile(filepath.Join(*dist, "checksums.txt"))
@@ -56,7 +58,9 @@ func main() {
 	if version == "" {
 		log.Fatal("no zoneaudit-cli archives listed in checksums.txt")
 	}
-	assets = append(assets, map[string]string{"name": "checksums.txt"})
+	if !*noChecksums {
+		assets = append(assets, map[string]string{"name": "checksums.txt"})
+	}
 	tag := "v" + version
 
 	if *tamper {
@@ -77,6 +81,10 @@ func main() {
 	mux.HandleFunc(repo+"/releases/download/"+tag+"/", func(w http.ResponseWriter, r *http.Request) {
 		name := filepath.Base(r.URL.Path)
 		if name == "checksums.txt" {
+			if *noChecksums {
+				http.NotFound(w, r)
+				return
+			}
 			w.Write(sums)
 			return
 		}

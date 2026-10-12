@@ -1,12 +1,13 @@
 #!/bin/sh
-# ZoneAudit CLI installer for macOS, Linux and BSD.
+# ZoneAudit CLI installer for macOS and Linux (amd64 and arm64).
 #
 #   curl -fsSL https://zoneaudit.com/install.sh | sh
 #
 # Downloads the latest release of github.com/ZoneAudit/zoneaudit-cli for
 # this computer, checks it against the release's published SHA-256
 # checksums, and installs the `zoneaudit` binary to ~/.local/bin (or
-# $ZONEAUDIT_INSTALL_DIR). It never uses sudo and stops on the first error.
+# $ZONEAUDIT_INSTALL_DIR). Nothing is installed unless the download matches
+# checksums.txt. It never uses sudo and stops on the first error.
 #
 # Everything runs inside main(), so a partly downloaded script does nothing.
 
@@ -73,15 +74,15 @@ main() {
   say "downloading ZoneAudit CLI ${tag} for ${os}/${arch}"
   curl -fsSL -o "${tmp}/${asset}" "${base}/${asset}" || fail "download failed: ${base}/${asset}"
 
-  if curl -fsSL -o "${tmp}/checksums.txt" "${base}/checksums.txt"; then
-    expected="$(awk -v f="$asset" '$2 == f { print $1 }' "${tmp}/checksums.txt")"
-    [ -n "$expected" ] || fail "${asset} is not listed in checksums.txt"
-    actual="$(sha256_of "${tmp}/${asset}")"
-    [ "$expected" = "$actual" ] || fail "checksum mismatch for ${asset}; nothing was installed"
-    say "checksum verified (SHA-256)"
-  else
-    say "warning: this release publishes no checksums.txt, so the download was not verified"
-  fi
+  # Every release publishes checksums.txt. If it cannot be fetched, for
+  # whatever reason, the archive cannot be verified, so stop.
+  curl -fsSL -o "${tmp}/checksums.txt" "${base}/checksums.txt" ||
+    fail "could not download checksums.txt for ${tag}, so ${asset} cannot be verified; nothing was installed"
+  expected="$(awk -v f="$asset" '$2 == f { print $1 }' "${tmp}/checksums.txt")"
+  [ -n "$expected" ] || fail "${asset} is not listed in checksums.txt; nothing was installed"
+  actual="$(sha256_of "${tmp}/${asset}")"
+  [ "$expected" = "$actual" ] || fail "checksum mismatch for ${asset}; nothing was installed"
+  say "checksum verified (SHA-256)"
 
   tar -xzf "${tmp}/${asset}" -C "$tmp" "$BINARY" || fail "could not unpack ${asset}"
 

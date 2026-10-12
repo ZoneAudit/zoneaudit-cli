@@ -38,14 +38,17 @@ und dieses Projekt hält sich an [Semantic Versioning](https://semver.org/spec/v
 - Das HTTP-Zeitlimit je Anfrage beginnt erst nach der Wartezeit der Ratenbegrenzung, sodass bei niedriger `-rate` wartende Anfragen nicht mehr vor dem Senden ablaufen.
 - Ein `v=spf1`-ähnliches Präfix wie `v=spf10` zählt nicht mehr als SPF.
 - Werte aus DNS und von Webservern (Einträge, `Server`-Header, Seitentitel, DMARC-Richtlinie) werden im Textbericht maskiert, sodass sie keine Terminal-Steuersequenzen einschleusen können. Die JSON-Ausgabe bleibt unverändert.
-- HTTP-Weiterleitungen werden nur innerhalb der gescannten Domain und ihrer Subdomains, auf den Standardports und nie zu einer IP-Adresse verfolgt; andernfalls wird die Weiterleitungsantwort gemeldet.
-- TLS-Handshakes und HTTP-Anfragen verbinden sich nur mit öffentlichen Adressen. Die Adresse wird beim Verbindungsaufbau geprüft, sodass eine DNS-Antwort, die sich zwischen zwei Abfragen ändert (DNS-Rebinding), keine Loopback-, private oder Link-Local-Adresse wie einen Cloud-Metadatendienst erreichen kann. Banner-Anfragen verbinden sich daher direkt, ohne HTTP-Proxy.
+- HTTP-Weiterleitungen werden nur innerhalb der gescannten Domain und ihrer Subdomains, auf dem Standardport des Schemas (443 für https, 80 für http), höchstens zweimal und nie zu einer IP-Adresse verfolgt; andernfalls wird die Weiterleitungsantwort gemeldet.
+- TLS-Handshakes, HTTP-Anfragen und RDAP-Abfragen (einschließlich Weiterleitungen) verbinden sich nur mit global erreichbaren Adressen, nie mit Loopback-, privaten, Link-Local- (etwa einem Cloud-Metadatendienst), Dokumentations-, Benchmarking- oder anderen Sonderbereichen. Die Adresse wird beim Verbindungsaufbau geprüft, sodass eine DNS-Antwort, die sich zwischen zwei Abfragen ändert (DNS-Rebinding), das nicht umgehen kann. Diese Verbindungen werden daher direkt, ohne HTTP-Proxy, aufgebaut. Die dafür nötigen DNS-Abfragen sind ratenbegrenzt und werden in `requests` gezählt, und IPv6- und IPv4-Adressen werden nach kurzer Verzögerung parallel versucht, damit eine unerreichbare Adresse nicht das Zeitlimit aufbraucht.
 - Strg+C während der anfänglichen Prüfung der Stammdomain schreibt den Teilbericht und endet mit Status 130, statt einen Auflösungsfehler zu melden.
 - Die Scandauer umfasst die Prüfung der Stammdomain, deren Abfragen bereits in `requests` gezählt wurden.
 - Der Seitentitel wird nicht mehr aus Tags gelesen, die nur mit „title“ beginnen, etwa `<titlefake>`.
 - `requests` zählt nur Anfragen, die starten durften, nicht solche, die beim Warten auf die Ratenbegrenzung abgebrochen wurden.
 - `total_scanned` zählt die tatsächlich geprüften Namen der Wortliste, sodass der Bericht eines abgebrochenen Scans docs/json-output.md entspricht.
-- `--help` folgt `-lang` (Englisch, Französisch oder Deutsch): Hinweis zur verantwortungsvollen Nutzung, Verwendungszeile, Optionsbeschreibungen und Standardwerte.
+- `--help` folgt `-lang` (Englisch, Französisch oder Deutsch): Hinweis zur verantwortungsvollen Nutzung, Verwendungszeile, Optionsbeschreibungen und Standardwerte. Ebenso Fehlermeldungen, der Fortschrittsbalken und der Hinweis auf einen Abbruch; die Sprache wird vor der Prüfung der Argumente gewählt.
+- `v=spf1` zählt nur als SPF, wenn ein Leerzeichen oder das Ende des Eintrags folgt; `v=spf1;x` ist kein SPF.
+- README und Release-Notes nennen native Befehle, um einen Download unter Linux, macOS und Windows zu prüfen.
+- Die Einzeilen-Installer (von der Website übernommen) installieren nicht, wenn `checksums.txt` fehlt oder nicht heruntergeladen werden kann, und die CI prüft das; der Shell-Installer gibt keine BSD-Unterstützung mehr an.
 
 ## [0.2.0] - 2026-06-03
 

@@ -113,7 +113,7 @@ func New(cfg Config) (*Scanner, error) {
 		base = net.DefaultResolver
 	}
 	s.resolver = &limitedResolver{base: base, limiter: s.limiter, timeout: cfg.Timeout}
-	s.dialer = newPublicDialer(base, cfg.Timeout)
+	s.dialer = newPublicDialer(s.resolver, cfg.Timeout)
 
 	var client http.Client
 	if cfg.HTTPClient != nil {
@@ -139,7 +139,11 @@ func New(cfg Config) (*Scanner, error) {
 	if baseRT == nil {
 		baseRT = http.DefaultTransport
 	}
-	client.Transport = &limitedTransport{base: baseRT, limiter: s.limiter, timeout: cfg.Timeout}
+	lt := &limitedTransport{base: baseRT, limiter: s.limiter, timeout: cfg.Timeout}
+	if cfg.HTTPClient == nil {
+		lt.dialer = s.dialer
+	}
+	client.Transport = lt
 	// RDAP keeps the caller's redirect policy: rdap.org redirects to the
 	// registry's own server, which is outside the scanned domain.
 	rdapClient := client
@@ -149,16 +153,29 @@ func New(cfg Config) (*Scanner, error) {
 	if cfg.HTTPClient != nil {
 		s.rdap = &rdapClient
 	} else {
+		// RDAP verifies certificates and may be redirected to any
+		// registry's server, but like every other connection it only
+		// reaches public addresses (redirects included), without a proxy.
 		s.rdap = &http.Client{
-			Transport: &limitedTransport{base: http.DefaultTransport, limiter: s.limiter, timeout: cfg.Timeout},
+			Transport: &limitedTransport{
+				base: &http.Transport{
+					DialContext:         s.dialer.DialContext,
+					TLSHandshakeTimeout: cfg.Timeout,
+					DisableKeepAlives:   true,
+					ForceAttemptHTTP2:   true,
+				},
+				limiter: s.limiter,
+				timeout: cfg.Timeout,
+				dialer:  s.dialer,
+			},
 		}
 	}
 
-	certs := cfg.CertFetcher
-	if certs == nil {
-		certs = tlsCertFetcher{dialer: s.dialer}
+	lc := &limitedCertFetcher{base: cfg.CertFetcher, limiter: s.limiter, timeout: cfg.Timeout}
+	if cfg.CertFetcher == nil {
+		lc.base, lc.dialer = tlsCertFetcher{dialer: s.dialer}, s.dialer
 	}
-	s.certs = &limitedCertFetcher{base: certs, limiter: s.limiter, timeout: cfg.Timeout}
+	s.certs = lc
 	return s, nil
 }
 

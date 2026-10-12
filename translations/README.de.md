@@ -33,15 +33,41 @@ Oder laden Sie ein Archiv für Linux, macOS oder Windows (amd64 oder arm64) von 
 
 ### Ein Release prüfen
 
-Ab v0.3.0 wird `checksums.txt` vom Release-Workflow dieses Repositorys mit der schlüssellosen Signatur von [cosign](https://docs.sigstore.dev/) signiert, und zu jedem Archiv gibt es eine SPDX-Softwarestückliste (`*.sbom.json`). So prüfen Sie einen Download:
+Ab v0.3.0 wird `checksums.txt` vom Release-Workflow dieses Repositorys mit der schlüssellosen Signatur von [cosign](https://docs.sigstore.dev/) signiert, und zu jedem Archiv gibt es eine SPDX-Softwarestückliste (`*.sbom.json`). Prüfen Sie zuerst die Signatur von `checksums.txt` und dann das Archiv anhand dieser Datei. Ersetzen Sie den Dateinamen durch den des heruntergeladenen Archivs.
 
-```bash
+**Linux**
+
+```sh
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 sha256sum --ignore-missing -c checksums.txt
+```
+
+**macOS**
+
+```sh
+cosign verify-blob \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+grep ' zoneaudit-cli_0.3.0_darwin_arm64.tar.gz$' checksums.txt | shasum -a 256 -c
+```
+
+**Windows (PowerShell)**
+
+```powershell
+cosign verify-blob `
+  --bundle checksums.txt.sigstore.json `
+  --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' `
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com `
+  checksums.txt
+$file = 'zoneaudit-cli_0.3.0_windows_amd64.zip'
+$line = Select-String -Path checksums.txt -Pattern (' ' + [regex]::Escape($file) + '$') | Select-Object -First 1
+if ($line -and ($line.Line -split '\s+')[0] -eq (Get-FileHash -Algorithm SHA256 $file).Hash) { 'OK' } else { 'Prüfsumme stimmt nicht' }
 ```
 
 ## Nutzung

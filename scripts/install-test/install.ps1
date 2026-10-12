@@ -6,6 +6,7 @@
 # this computer, checks it against the release's published SHA-256
 # checksums, installs zoneaudit.exe to %LOCALAPPDATA%\Programs\zoneaudit
 # (or $env:ZONEAUDIT_INSTALL_DIR) and adds that folder to your user PATH.
+# Nothing is installed unless the download matches checksums.txt.
 # No administrator rights are needed. It stops on the first error, and
 # throws rather than exits, so your PowerShell window stays open.
 
@@ -39,18 +40,19 @@
     $zip = Join-Path $tmp $asset
     Invoke-WebRequest -UseBasicParsing -Uri "$base/$asset" -OutFile $zip
 
-    if ($release.assets.name -contains 'checksums.txt') {
-      $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$base/checksums.txt").Content
-      if ($sums -is [byte[]]) { $sums = [Text.Encoding]::UTF8.GetString($sums) }
-      $line = $sums -split "`n" | Where-Object { ($_ -split '\s+')[1] -eq $asset } | Select-Object -First 1
-      if (-not $line) { throw "zoneaudit-install: $asset is not listed in checksums.txt" }
-      $expected = ($line -split '\s+')[0].ToLowerInvariant()
-      $actual = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLowerInvariant()
-      if ($expected -ne $actual) { throw "zoneaudit-install: checksum mismatch for $asset; nothing was installed" }
-      Say 'checksum verified (SHA-256)'
-    } else {
-      Say 'warning: this release publishes no checksums.txt, so the download was not verified'
+    # Every release publishes checksums.txt. Without it the archive cannot
+    # be verified, so stop; a failed download of it also stops the script.
+    if ($release.assets.name -notcontains 'checksums.txt') {
+      throw "zoneaudit-install: release $tag publishes no checksums.txt, so $asset cannot be verified; nothing was installed"
     }
+    $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$base/checksums.txt").Content
+    if ($sums -is [byte[]]) { $sums = [Text.Encoding]::UTF8.GetString($sums) }
+    $line = $sums -split "`n" | Where-Object { ($_ -split '\s+')[1] -eq $asset } | Select-Object -First 1
+    if (-not $line) { throw "zoneaudit-install: $asset is not listed in checksums.txt; nothing was installed" }
+    $expected = ($line -split '\s+')[0].ToLowerInvariant()
+    $actual = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLowerInvariant()
+    if ($expected -ne $actual) { throw "zoneaudit-install: checksum mismatch for $asset; nothing was installed" }
+    Say 'checksum verified (SHA-256)'
 
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
     $exe = Join-Path $tmp 'zoneaudit.exe'

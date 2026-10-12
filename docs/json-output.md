@@ -25,7 +25,7 @@ Check the major number before reading a report, for example `jq -e '.schema_vers
 | `settings.concurrency` | integer | Workers used (`-c`) |
 | `settings.rate_per_second` | integer | Request cap used (`-rate`) |
 | `settings.timeout_seconds` | number | Per-request timeout used (`-timeout`) |
-| `requests` | integer | Outbound requests made (DNS lookups, TLS handshakes, HTTP requests and the RDAP query) |
+| `requests` | integer | Outbound requests made (DNS lookups, including those made to connect, TLS handshakes, HTTP requests and RDAP queries), each admitted by the rate limiter |
 | `domain_expiry` | object or null | From RDAP; `null` if RDAP gave no answer |
 | `domain_expiry.expiry_date` | string | RFC 3339, UTC |
 | `domain_expiry.days_left` | integer | Whole days until expiry; negative once expired |

@@ -126,29 +126,39 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scann
 		fs.Usage()
 		return 2
 	}
+	// Choose the language first, so every message below follows -lang.
+	T := stringsFor(o.lang)
 	if o.lang != "" && !i18n.Supported(o.lang) {
-		fmt.Fprintf(stderr, "error: unsupported language %q (use en, fr or de)\n", o.lang)
+		fmt.Fprintf(stderr, T.ErrUnsupportedLang+"\n", o.lang)
 		return 2
 	}
 	domain, err := scanner.NormaliseDomain(o.domain)
 	if err != nil {
-		fmt.Fprintf(stderr, "error: %v\n", err)
+		fmt.Fprintf(stderr, T.ErrInvalidDomain+"\n", o.domain)
 		return 2
 	}
 
-	// Zero would mean "use the default" to scanner.New, so reject it here.
-	if o.concurrency < 1 || o.rate < 1 || o.timeout <= 0 {
-		fmt.Fprintln(stderr, "error: -c, -rate and -timeout must be greater than zero")
+	// The limits are checked here, not left to scanner.New, so the
+	// messages are localised. Zero would mean "use the default" to
+	// scanner.New, so it is rejected too.
+	switch {
+	case o.concurrency < 1 || o.concurrency > scanner.MaxConcurrency:
+		fmt.Fprintf(stderr, T.ErrConcurrency+"\n", scanner.MaxConcurrency)
+		return 2
+	case o.rate < 1 || o.rate > scanner.MaxRate:
+		fmt.Fprintf(stderr, T.ErrRate+"\n", scanner.MaxRate)
+		return 2
+	case o.timeout < scanner.MinTimeout || o.timeout > scanner.MaxTimeout:
+		fmt.Fprintf(stderr, T.ErrTimeout+"\n", scanner.MinTimeout, scanner.MaxTimeout)
 		return 2
 	}
 	cfg.Concurrency, cfg.Rate, cfg.Timeout = o.concurrency, o.rate, o.timeout
 	s, err := scanner.New(cfg)
 	if err != nil {
-		fmt.Fprintf(stderr, "error: %v\n", err)
+		fmt.Fprintf(stderr, T.ErrGeneric+"\n", err)
 		return 2
 	}
 	now := s.Config().Now
-	T := stringsFor(o.lang)
 
 	// The clock starts before the root check, whose lookups are counted in
 	// the report's requests.
@@ -159,7 +169,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scann
 	// later step stops at once without sending requests, and the partial
 	// report is written with exit status 130.
 	if !s.RootResolves(ctx, domain) && !errors.Is(ctx.Err(), context.Canceled) {
-		fmt.Fprintf(stderr, "[CRITICAL] Root domain resolution failed for '%s'. Check connectivity or spelling.\n", domain)
+		fmt.Fprintf(stderr, T.ErrRootResolution+"\n", domain)
 		return 1
 	}
 	if !o.asJSON {
@@ -189,7 +199,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scann
 			for p := range progress {
 				count += p
 				pct := float64(count) / float64(total) * 100
-				fmt.Fprintf(stderr, "\r[*] Discovery: [%-20s] %3.0f%% ", strings.Repeat("=", int(pct/5)), pct)
+				fmt.Fprintf(stderr, "\r[*] %s: [%-20s] %3.0f%% ", T.Discovery, strings.Repeat("=", int(pct/5)), pct)
 			}
 			fmt.Fprint(stderr, "\r"+strings.Repeat(" ", 60)+"\r")
 		}()
@@ -213,7 +223,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scann
 	// 130 (the conventional status for SIGINT) so callers can tell.
 	code := 0
 	if ctx.Err() != nil {
-		fmt.Fprintln(stderr, "interrupted: results are incomplete")
+		fmt.Fprintln(stderr, T.Interrupted)
 		code = exitInterrupted
 	}
 
@@ -222,7 +232,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, cfg scann
 		enc.SetIndent("", "  ")
 		enc.SetEscapeHTML(false)
 		if err := enc.Encode(results); err != nil {
-			fmt.Fprintf(stderr, "error: %v\n", err)
+			fmt.Fprintf(stderr, T.ErrGeneric+"\n", err)
 			return 1
 		}
 		return code

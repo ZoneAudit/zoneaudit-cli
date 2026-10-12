@@ -33,15 +33,41 @@ Ou téléchargez une archive pour Linux, macOS ou Windows (amd64 ou arm64) depui
 
 ### Vérifier une version
 
-À partir de la v0.3.0, `checksums.txt` est signé avec la signature sans clé de [cosign](https://docs.sigstore.dev/) par le workflow de publication de ce dépôt, et chaque archive est accompagnée d'une nomenclature logicielle SPDX (`*.sbom.json`). Pour vérifier un téléchargement :
+À partir de la v0.3.0, `checksums.txt` est signé avec la signature sans clé de [cosign](https://docs.sigstore.dev/) par le workflow de publication de ce dépôt, et chaque archive est accompagnée d'une nomenclature logicielle SPDX (`*.sbom.json`). Pour vérifier un téléchargement, vérifiez d'abord la signature de `checksums.txt`, puis l'archive à l'aide de ce fichier. Remplacez le nom de fichier par celui de l'archive téléchargée.
 
-```bash
+**Linux**
+
+```sh
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 sha256sum --ignore-missing -c checksums.txt
+```
+
+**macOS**
+
+```sh
+cosign verify-blob \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+grep ' zoneaudit-cli_0.3.0_darwin_arm64.tar.gz$' checksums.txt | shasum -a 256 -c
+```
+
+**Windows (PowerShell)**
+
+```powershell
+cosign verify-blob `
+  --bundle checksums.txt.sigstore.json `
+  --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' `
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com `
+  checksums.txt
+$file = 'zoneaudit-cli_0.3.0_windows_amd64.zip'
+$line = Select-String -Path checksums.txt -Pattern (' ' + [regex]::Escape($file) + '$') | Select-Object -First 1
+if ($line -and ($line.Line -split '\s+')[0] -eq (Get-FileHash -Algorithm SHA256 $file).Hash) { 'OK' } else { 'somme de contrôle incorrecte' }
 ```
 
 ## Utilisation

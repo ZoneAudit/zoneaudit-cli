@@ -38,14 +38,17 @@ et ce projet adhère au [Versionnement Sémantique](https://semver.org/spec/v2.0
 - Le délai d'attente HTTP par requête démarre après l'attente du limiteur de débit, de sorte que les requêtes en file à faible `-rate` n'expirent plus avant d'être envoyées.
 - Un préfixe proche de `v=spf1`, comme `v=spf10`, n'est plus compté comme SPF.
 - Les valeurs issues du DNS et des serveurs web (enregistrements, en-têtes `Server`, titres de page, politique DMARC) sont échappées dans le rapport texte, de sorte qu'elles ne peuvent pas injecter de séquences de contrôle dans le terminal. La sortie JSON est inchangée.
-- Les redirections HTTP ne sont suivies qu'au sein du domaine analysé et de ses sous-domaines, sur les ports standard, et jamais vers une adresse IP ; sinon, la réponse de redirection est indiquée.
-- Les négociations TLS et les requêtes HTTP ne se connectent qu'à des adresses publiques. L'adresse est vérifiée au moment de la connexion : une réponse DNS qui change entre deux requêtes (DNS rebinding) ne peut pas atteindre une adresse de bouclage, privée ou lien-local, comme un service de métadonnées cloud. Les requêtes de bannière se connectent donc directement, sans proxy HTTP.
+- Les redirections HTTP ne sont suivies qu'au sein du domaine analysé et de ses sous-domaines, sur le port standard du schéma (443 pour https, 80 pour http), deux fois au plus, et jamais vers une adresse IP ; sinon, la réponse de redirection est indiquée.
+- Les négociations TLS, les requêtes HTTP et les requêtes RDAP (redirections comprises) ne se connectent qu'à des adresses joignables publiquement, jamais à des plages de bouclage, privées, lien-local (comme un service de métadonnées cloud), de documentation, de test de performance ou à usage spécial. L'adresse est vérifiée au moment de la connexion : une réponse DNS qui change entre deux requêtes (DNS rebinding) ne permet pas de contourner cette règle. Ces connexions se font donc directement, sans proxy HTTP. Les résolutions DNS faites pour se connecter sont limitées en débit et comptées dans `requests`, et les adresses IPv6 et IPv4 sont essayées en parallèle après un court délai, pour qu'une adresse injoignable n'épuise pas le délai d'attente.
 - Un Ctrl+C pendant la vérification initiale du domaine racine écrit le rapport partiel et termine avec le code 130, au lieu de signaler un échec de résolution.
 - La durée du scan inclut la vérification du domaine racine, dont les requêtes étaient déjà comptées dans `requests`.
 - Le titre de page n'est plus lu dans des balises qui commencent simplement par « title », comme `<titlefake>`.
 - `requests` ne compte que les requêtes autorisées à démarrer, et non celles annulées pendant l'attente du limiteur de débit.
 - `total_scanned` compte les noms de la liste réellement essayés, de sorte que le rapport d'un scan interrompu correspond à docs/json-output.md.
-- `--help` suit `-lang` (anglais, français ou allemand) : avertissement d'utilisation responsable, ligne d'utilisation, description des options et valeurs par défaut.
+- `--help` suit `-lang` (anglais, français ou allemand) : avertissement d'utilisation responsable, ligne d'utilisation, description des options et valeurs par défaut. Les messages d'erreur, la barre de progression et l'avis d'interruption aussi ; la langue est choisie avant la vérification des arguments.
+- `v=spf1` n'est compté comme SPF que s'il est suivi d'une espace ou de la fin de l'enregistrement : `v=spf1;x` n'est pas du SPF.
+- Le README et les notes de version donnent des commandes natives pour vérifier un téléchargement sous Linux, macOS et Windows.
+- Les installateurs en une ligne (copiés depuis le site web) refusent d'installer si `checksums.txt` est absent ou ne peut pas être téléchargé, et la CI le vérifie ; l'installateur shell ne prétend plus prendre en charge BSD.
 
 ## [0.2.0] - 2026-06-03
 

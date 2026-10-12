@@ -145,7 +145,7 @@ func (s *Scanner) CheckEmailSecurity(ctx context.Context, domain string) EmailSe
 func EvaluateEmailSecurity(rootTXT, dmarcTXT []string) EmailSecurity {
 	es := EmailSecurity{SPFStatus: StatusMissing, DMARCStatus: StatusMissing}
 	for _, txt := range rootTXT {
-		if hasTag(txt, "v=spf1") {
+		if isSPF(txt) {
 			es.SPF = true
 			es.SPFStatus = StatusPresent
 		}
@@ -167,8 +167,17 @@ func EvaluateEmailSecurity(rootTXT, dmarcTXT []string) EmailSecurity {
 	return es
 }
 
-// hasTag reports whether a TXT record starts with the given version tag,
-// ignoring case and surrounding space.
+// isSPF reports whether a TXT record is an SPF record: "v=spf1" followed by
+// the end of the record or a space (RFC 7208, section 4.5). Unlike DMARC, a
+// ";" does not end the version, so "v=spf1;x" is not SPF.
+func isSPF(txt string) bool {
+	t := strings.ToLower(strings.TrimSpace(txt))
+	return t == "v=spf1" || strings.HasPrefix(t, "v=spf1 ")
+}
+
+// hasTag reports whether a TXT record starts with the given DMARC-style
+// version tag (ended by the record's end, a space, a tab or ";"), ignoring
+// case and surrounding space.
 func hasTag(txt, tag string) bool {
 	t := strings.ToLower(strings.TrimSpace(txt))
 	if !strings.HasPrefix(t, tag) {

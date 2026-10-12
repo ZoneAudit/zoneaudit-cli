@@ -38,14 +38,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The per-request HTTP timeout starts after the rate limiter's wait, so requests queued at a low `-rate` no longer time out before they are sent.
 - A `v=spf1`-like prefix such as `v=spf10` is no longer counted as SPF.
 - Values from DNS and web servers (records, `Server` headers, page titles, the DMARC policy) are escaped in the text report, so they cannot inject terminal control sequences. JSON output is unchanged.
-- HTTP redirects are followed only within the scanned domain and its subdomains, on the standard ports, and never to an IP address; otherwise the redirect response is reported.
-- TLS handshakes and HTTP requests connect only to public addresses. The address is checked when connecting, so a DNS answer that changes between lookups (DNS rebinding) cannot reach a loopback, private or link-local address such as a cloud metadata service. Banner requests therefore connect directly, without an HTTP proxy.
+- HTTP redirects are followed only within the scanned domain and its subdomains, on the scheme's standard port (443 for https, 80 for http), at most twice, and never to an IP address; otherwise the redirect response is reported.
+- TLS handshakes, HTTP requests and RDAP queries (redirects included) connect only to globally reachable addresses, never to loopback, private, link-local (such as a cloud metadata service), documentation, benchmarking or other special-purpose ranges. The address is checked when connecting, so a DNS answer that changes between lookups (DNS rebinding) cannot get round it. These connections are therefore made directly, without an HTTP proxy. The lookups made to connect are rate limited and counted in `requests`, and IPv6 and IPv4 addresses are tried in parallel after a short delay, so an unreachable address does not use up the timeout.
 - Ctrl+C during the initial root-domain check writes the partial report and exits with 130, rather than reporting a resolution failure.
 - The scan duration includes the root-domain check, whose lookups were already counted in `requests`.
 - The page title is no longer read from tags that merely start with "title", such as `<titlefake>`.
 - `requests` counts only requests that were allowed to start, not ones cancelled while waiting for the rate limiter.
 - `total_scanned` counts the wordlist names actually tried, so an interrupted scan's report matches docs/json-output.md.
-- `--help` follows `-lang` (English, French or German): the responsible-use notice, usage line, option descriptions and defaults.
+- `--help` follows `-lang` (English, French or German): the responsible-use notice, usage line, option descriptions and defaults. So do error messages, the progress bar and the interruption notice; the language is chosen before the arguments are checked.
+- `v=spf1` counts as SPF only when followed by a space or the end of the record, so `v=spf1;x` is not SPF.
+- The README and the release notes give native commands to verify a download on Linux, macOS and Windows.
+- The one-line installers (vendored from the website) refuse to install when `checksums.txt` is missing or cannot be downloaded, and CI checks this; the shell installer no longer claims BSD support.
 
 ## [0.2.0] - 2026-06-03
 

@@ -44,6 +44,14 @@ case "$mode" in
     [ ! -e "$work/bad/zoneaudit" ] || { echo "FAIL: binary installed despite checksum mismatch" >&2; exit 1; }
     stop_server
 
+    echo "== a release without checksums.txt must be refused"
+    start_server "$dist" -nochecksums
+    if ZONEAUDIT_INSTALL_DIR="$work/unverified" sh "$work/install.sh"; then
+      echo "FAIL: installer installed an unverified archive" >&2; exit 1
+    fi
+    [ ! -e "$work/unverified/zoneaudit" ] || { echo "FAIL: binary installed without checksums" >&2; exit 1; }
+    stop_server
+
     echo "== install from CI artefacts (curl | sh)"
     start_server "$dist" ""
     cat "$work/install.sh" | ZONEAUDIT_INSTALL_DIR="$work/bin" sh

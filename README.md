@@ -33,15 +33,41 @@ Or download an archive for Linux, macOS or Windows (amd64 or arm64) from the [re
 
 ### Verify a release
 
-From v0.3.0, `checksums.txt` is signed with [cosign](https://docs.sigstore.dev/) keyless signing by this repository's release workflow, and each archive has an SPDX software bill of materials (`*.sbom.json`). To check a download:
+From v0.3.0, `checksums.txt` is signed with [cosign](https://docs.sigstore.dev/) keyless signing by this repository's release workflow, and each archive has an SPDX software bill of materials (`*.sbom.json`). To check a download, first verify the signature on `checksums.txt`, then check the archive against it. Replace the file name with the archive you downloaded.
 
-```bash
+**Linux**
+
+```sh
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 sha256sum --ignore-missing -c checksums.txt
+```
+
+**macOS**
+
+```sh
+cosign verify-blob \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+grep ' zoneaudit-cli_0.3.0_darwin_arm64.tar.gz$' checksums.txt | shasum -a 256 -c
+```
+
+**Windows (PowerShell)**
+
+```powershell
+cosign verify-blob `
+  --bundle checksums.txt.sigstore.json `
+  --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' `
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com `
+  checksums.txt
+$file = 'zoneaudit-cli_0.3.0_windows_amd64.zip'
+$line = Select-String -Path checksums.txt -Pattern (' ' + [regex]::Escape($file) + '$') | Select-Object -First 1
+if ($line -and ($line.Line -split '\s+')[0] -eq (Get-FileHash -Algorithm SHA256 $file).Hash) { 'OK' } else { 'checksum mismatch' }
 ```
 
 ## Usage

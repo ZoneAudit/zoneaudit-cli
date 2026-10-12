@@ -155,6 +155,7 @@ func TestUsageErrors(t *testing.T) {
 }
 
 func TestRootDomainMustResolve(t *testing.T) {
+	t.Setenv("LANG", "en_GB.UTF-8")
 	code, out, errOut := runCLI(t, "-d", "nonexistent.example")
 	if code != 1 || !strings.Contains(errOut, "Root domain resolution failed") || out != "" {
 		t.Errorf("exit %d, stdout %q, stderr %q", code, out, errOut)
@@ -454,6 +455,53 @@ func TestEveryStringIsTranslated(t *testing.T) {
 			if v.Field(i).String() == "" {
 				t.Errorf("%s: %s is empty", lang, v.Type().Field(i).Name)
 			}
+		}
+	}
+}
+
+func TestMessagesFollowLang(t *testing.T) {
+	t.Setenv("LANG", "en_GB.UTF-8")
+	for _, lang := range []string{"en", "fr", "de"} {
+		T := i18n.For(lang)
+		cases := []struct {
+			args []string
+			want string
+		}{
+			{[]string{"-d", "not a domain"}, fmt.Sprintf(T.ErrInvalidDomain, "not a domain")},
+			{[]string{"-d", "example.com", "-c", "0"}, fmt.Sprintf(T.ErrConcurrency, scanner.MaxConcurrency)},
+			{[]string{"-d", "example.com", "-rate", "500"}, fmt.Sprintf(T.ErrRate, scanner.MaxRate)},
+			{[]string{"-d", "example.com", "-timeout", "100ms"}, fmt.Sprintf(T.ErrTimeout, scanner.MinTimeout, scanner.MaxTimeout)},
+			{[]string{"-d", "nonexistent.example"}, fmt.Sprintf(T.ErrRootResolution, "nonexistent.example")},
+		}
+		for _, c := range cases {
+			// -lang after the bad value still applies.
+			args := append(append([]string{}, c.args...), "-lang", lang)
+			code, _, errOut := runCLI(t, args...)
+			if code == 0 || strings.TrimSpace(errOut) != c.want {
+				t.Errorf("%v: exit %d, stderr %q, want %q", args, code, errOut, c.want)
+			}
+		}
+	}
+	// An unsupported -lang is reported in the LANG language.
+	t.Setenv("LANG", "fr_FR.UTF-8")
+	if _, _, errOut := runCLI(t, "-d", "example.com", "-lang", "es"); strings.TrimSpace(errOut) != fmt.Sprintf(i18n.For("fr").ErrUnsupportedLang, "es") {
+		t.Errorf("unsupported language: stderr %q", errOut)
+	}
+}
+
+func TestInterruptedMessageFollowsLang(t *testing.T) {
+	for _, lang := range []string{"en", "fr", "de"} {
+		ctx, cancel := context.WithCancel(context.Background())
+		cfg := fixtureConfig()
+		cfg.Resolver = cancellingResolver{Resolver: scannertest.LoadResolver("example.com"), cancel: cancel}
+		var out, errOut bytes.Buffer
+		code := run(ctx, []string{"-d", "example.com", "-rate", "100", "-lang", lang}, &out, &errOut, cfg)
+		cancel()
+		if code != 130 || !strings.Contains(errOut.String(), i18n.For(lang).Interrupted) {
+			t.Errorf("%s: exit %d, stderr %q", lang, code, errOut.String())
+		}
+		if lang != "en" && strings.Contains(errOut.String(), "interrupted:") {
+			t.Errorf("%s: the interruption message is still in English", lang)
 		}
 	}
 }

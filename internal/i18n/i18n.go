@@ -43,6 +43,17 @@ type LanguageStrings struct {
 	FlagJSON        string // %s is the schema version
 	FlagLang        string
 	FlagVersion     string
+
+	// Messages on standard error.
+	Discovery          string // progress bar label
+	Interrupted        string
+	ErrUnsupportedLang string // %q is the code given
+	ErrInvalidDomain   string // %q is the argument given
+	ErrConcurrency     string // %d is the maximum
+	ErrRate            string // %d is the maximum
+	ErrTimeout         string // %s, %s are the minimum and maximum
+	ErrRootResolution  string // %s is the domain
+	ErrGeneric         string // %v is the error
 }
 
 var en = LanguageStrings{
@@ -73,16 +84,25 @@ HTTP only if HTTPS does not answer, following at most 2 redirects within the
 scanned domain). It also makes one RDAP query for the domain's expiry date.
 It does not scan ports or attempt access. All requests are capped by -rate
 and each one is bounded by -timeout.`,
-	HelpUsage:       "Usage: zoneaudit -d <domain> [-c n] [-rate n] [-timeout duration] [-json] [-lang en|fr|de]",
-	HelpOptions:     "Options:",
-	HelpDefault:     "(default %s)",
-	FlagDomain:      "Target `domain` to scan (e.g. example.com)",
-	FlagConcurrency: "Number of concurrent workers, `n` from 1 to %d",
-	FlagRate:        "Maximum requests per second across DNS, TLS, HTTP and RDAP, `n` from 1 to %d",
-	FlagTimeout:     "Timeout for each request, a `duration` from %s to %s",
-	FlagJSON:        "Output results as JSON (schema version %s)",
-	FlagLang:        "Language `code` (en, fr or de); defaults to the LANG environment variable",
-	FlagVersion:     "Print the version and exit",
+	HelpUsage:          "Usage: zoneaudit -d <domain> [-c n] [-rate n] [-timeout duration] [-json] [-lang en|fr|de]",
+	HelpOptions:        "Options:",
+	HelpDefault:        "(default %s)",
+	FlagDomain:         "Target `domain` to scan (e.g. example.com)",
+	FlagConcurrency:    "Number of concurrent workers, `n` from 1 to %d",
+	FlagRate:           "Maximum requests per second across DNS, TLS, HTTP and RDAP, `n` from 1 to %d",
+	FlagTimeout:        "Timeout for each request, a `duration` from %s to %s",
+	FlagJSON:           "Output results as JSON (schema version %s)",
+	FlagLang:           "Language `code` (en, fr or de); defaults to the LANG environment variable",
+	FlagVersion:        "Print the version and exit",
+	Discovery:          "Discovery",
+	Interrupted:        "interrupted: results are incomplete",
+	ErrUnsupportedLang: "error: unsupported language %q (use en, fr or de)",
+	ErrInvalidDomain:   "error: %q is not a valid domain name",
+	ErrConcurrency:     "error: -c must be between 1 and %d",
+	ErrRate:            "error: -rate must be between 1 and %d requests per second",
+	ErrTimeout:         "error: -timeout must be between %s and %s",
+	ErrRootResolution:  "[CRITICAL] Root domain resolution failed for '%s'. Check connectivity or spelling.",
+	ErrGeneric:         "error: %v",
 }
 
 var fr = LanguageStrings{
@@ -115,16 +135,25 @@ légère (en HTTP simple uniquement si HTTPS ne répond pas, avec au plus
 pour la date d'expiration du domaine. Il ne scanne pas les ports et ne tente
 aucun accès. Toutes les requêtes sont limitées par -rate et chacune est bornée
 par -timeout.`,
-	HelpUsage:       "Utilisation : zoneaudit -d <domaine> [-c n] [-rate n] [-timeout durée] [-json] [-lang en|fr|de]",
-	HelpOptions:     "Options :",
-	HelpDefault:     "(par défaut : %s)",
-	FlagDomain:      "Nom de `domaine` à analyser (par ex. example.com)",
-	FlagConcurrency: "Nombre de tâches parallèles, `n` de 1 à %d",
-	FlagRate:        "Nombre maximal de requêtes par seconde, DNS, TLS, HTTP et RDAP confondus, `n` de 1 à %d",
-	FlagTimeout:     "Délai d'attente de chaque requête, une `durée` de %s à %s",
-	FlagJSON:        "Résultats au format JSON (version de schéma %s)",
-	FlagLang:        "Langue, par son `code` (en, fr ou de) ; par défaut, celle de la variable d'environnement LANG",
-	FlagVersion:     "Affiche la version et quitte",
+	HelpUsage:          "Utilisation : zoneaudit -d <domaine> [-c n] [-rate n] [-timeout durée] [-json] [-lang en|fr|de]",
+	HelpOptions:        "Options :",
+	HelpDefault:        "(par défaut : %s)",
+	FlagDomain:         "Nom de `domaine` à analyser (par ex. example.com)",
+	FlagConcurrency:    "Nombre de tâches parallèles, `n` de 1 à %d",
+	FlagRate:           "Nombre maximal de requêtes par seconde, DNS, TLS, HTTP et RDAP confondus, `n` de 1 à %d",
+	FlagTimeout:        "Délai d'attente de chaque requête, une `durée` de %s à %s",
+	FlagJSON:           "Résultats au format JSON (version de schéma %s)",
+	FlagLang:           "Langue, par son `code` (en, fr ou de) ; par défaut, celle de la variable d'environnement LANG",
+	FlagVersion:        "Affiche la version et quitte",
+	Discovery:          "Découverte",
+	Interrupted:        "interrompu : les résultats sont incomplets",
+	ErrUnsupportedLang: "erreur : langue non prise en charge %q (utilisez en, fr ou de)",
+	ErrInvalidDomain:   "erreur : %q n'est pas un nom de domaine valide",
+	ErrConcurrency:     "erreur : -c doit être compris entre 1 et %d",
+	ErrRate:            "erreur : -rate doit être compris entre 1 et %d requêtes par seconde",
+	ErrTimeout:         "erreur : -timeout doit être compris entre %s et %s",
+	ErrRootResolution:  "[CRITIQUE] La résolution du domaine racine a échoué pour « %s ». Vérifiez la connexion ou l'orthographe.",
+	ErrGeneric:         "erreur : %v",
 }
 
 var de = LanguageStrings{
@@ -157,16 +186,25 @@ höchstens 2 Weiterleitungen innerhalb der gescannten Domain). Außerdem stellt
 es eine RDAP-Anfrage zum Ablaufdatum der Domain. Es scannt keine Ports und
 versucht keinen Zugriff. Alle Anfragen sind durch -rate begrenzt und jede
 einzelne durch -timeout.`,
-	HelpUsage:       "Verwendung: zoneaudit -d <Domain> [-c n] [-rate n] [-timeout Dauer] [-json] [-lang en|fr|de]",
-	HelpOptions:     "Optionen:",
-	HelpDefault:     "(Standard: %s)",
-	FlagDomain:      "Zu scannende `Domain` (z. B. example.com)",
-	FlagConcurrency: "Anzahl paralleler Worker, `n` von 1 bis %d",
-	FlagRate:        "Höchstzahl an Anfragen pro Sekunde über DNS, TLS, HTTP und RDAP, `n` von 1 bis %d",
-	FlagTimeout:     "Zeitlimit je Anfrage, eine `Dauer` von %s bis %s",
-	FlagJSON:        "Ergebnisse als JSON ausgeben (Schemaversion %s)",
-	FlagLang:        "Sprache als `Code` (en, fr oder de); Standard ist die Umgebungsvariable LANG",
-	FlagVersion:     "Version anzeigen und beenden",
+	HelpUsage:          "Verwendung: zoneaudit -d <Domain> [-c n] [-rate n] [-timeout Dauer] [-json] [-lang en|fr|de]",
+	HelpOptions:        "Optionen:",
+	HelpDefault:        "(Standard: %s)",
+	FlagDomain:         "Zu scannende `Domain` (z. B. example.com)",
+	FlagConcurrency:    "Anzahl paralleler Worker, `n` von 1 bis %d",
+	FlagRate:           "Höchstzahl an Anfragen pro Sekunde über DNS, TLS, HTTP und RDAP, `n` von 1 bis %d",
+	FlagTimeout:        "Zeitlimit je Anfrage, eine `Dauer` von %s bis %s",
+	FlagJSON:           "Ergebnisse als JSON ausgeben (Schemaversion %s)",
+	FlagLang:           "Sprache als `Code` (en, fr oder de); Standard ist die Umgebungsvariable LANG",
+	FlagVersion:        "Version anzeigen und beenden",
+	Discovery:          "Erkennung",
+	Interrupted:        "abgebrochen: Die Ergebnisse sind unvollständig",
+	ErrUnsupportedLang: "Fehler: nicht unterstützte Sprache %q (verwenden Sie en, fr oder de)",
+	ErrInvalidDomain:   "Fehler: %q ist kein gültiger Domainname",
+	ErrConcurrency:     "Fehler: -c muss zwischen 1 und %d liegen",
+	ErrRate:            "Fehler: -rate muss zwischen 1 und %d Anfragen pro Sekunde liegen",
+	ErrTimeout:         "Fehler: -timeout muss zwischen %s und %s liegen",
+	ErrRootResolution:  "[KRITISCH] Die Auflösung der Stammdomain „%s“ ist fehlgeschlagen. Prüfen Sie die Verbindung oder die Schreibweise.",
+	ErrGeneric:         "Fehler: %v",
 }
 
 // GetStrings returns the strings for the language in the LANG environment variable.

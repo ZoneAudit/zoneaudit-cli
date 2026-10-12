@@ -128,7 +128,9 @@ release:
   footer: |
     ## Verify this release
 
-    `checksums.txt` is signed with [cosign](https://docs.sigstore.dev/) keyless signing from this repository's release workflow:
+    `checksums.txt` is signed with [cosign](https://docs.sigstore.dev/) keyless signing from this repository's release workflow. Verify its signature, then check your archive against it:
+
+    **Linux**
 
     ```sh
     cosign verify-blob \
@@ -137,6 +139,30 @@ release:
       --certificate-oidc-issuer https://token.actions.githubusercontent.com \
       checksums.txt
     sha256sum --ignore-missing -c checksums.txt
+    ```
+
+    **macOS**
+
+    ```sh
+    cosign verify-blob \
+      --bundle checksums.txt.sigstore.json \
+      --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      checksums.txt
+    grep ' zoneaudit-cli_{{ .Version }}_darwin_arm64.tar.gz$' checksums.txt | shasum -a 256 -c
+    ```
+
+    **Windows (PowerShell)**
+
+    ```powershell
+    cosign verify-blob `
+      --bundle checksums.txt.sigstore.json `
+      --certificate-identity-regexp '^https://github.com/ZoneAudit/zoneaudit-cli/\.github/workflows/release\.yml@refs/tags/v' `
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com `
+      checksums.txt
+    $file = 'zoneaudit-cli_{{ .Version }}_windows_amd64.zip'
+    $line = Select-String -Path checksums.txt -Pattern (' ' + [regex]::Escape($file) + '$') | Select-Object -First 1
+    if ($line -and ($line.Line -split '\s+')[0] -eq (Get-FileHash -Algorithm SHA256 $file).Hash) { 'OK' } else { 'checksum mismatch' }
     ```
 
     Each archive has an SPDX SBOM (`*.sbom.json`).

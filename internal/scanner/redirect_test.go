@@ -3,6 +3,7 @@ package scanner_test
 import (
 	"context"
 	"net"
+	"net/http"
 	"testing"
 
 	"github.com/ZoneAudit/zoneaudit-cli/internal/scanner"
@@ -20,6 +21,8 @@ func TestRedirectOutsideScopeIsNotFollowed(t *testing.T) {
 		"http://[::1]/",                            // IPv6 loopback
 		"https://example.com:8443/",                // another port
 		"ftp://example.com/",                       // another scheme
+		"https://example.com:80/",                  // http's port with https
+		"http://example.com:443/",                  // https's port with http
 	}
 	for _, target := range targets {
 		t.Run(target, func(t *testing.T) {
@@ -34,6 +37,26 @@ func TestRedirectOutsideScopeIsNotFollowed(t *testing.T) {
 				t.Errorf("made %d HTTP requests, want 1 (the redirect must not be followed)", n)
 			}
 		})
+	}
+}
+
+func TestCallerRedirectPolicyCannotExceedTheCap(t *testing.T) {
+	calls := 0
+	f := newFixture(t, func(c *scanner.Config) {
+		c.HTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error { calls++; return nil }
+	})
+	loop := scannertest.RawResponse(302, map[string]string{"Location": "https://example.com/"}, "")
+	f.transport.Routes["https://example.com"] = loop
+	f.transport.Routes["https://example.com/"] = loop
+	res := f.s.CheckSubdomain(scanner.WithScope(context.Background(), "example.com"), "example.com")
+	if res.HTTP == nil || res.HTTP.Status != 302 {
+		t.Fatalf("got %+v, want the last 302 response", res.HTTP)
+	}
+	if n := len(f.transport.Requests); n != 3 {
+		t.Errorf("made %d requests, want 3 (the first plus 2 redirects) even with a caller policy", n)
+	}
+	if calls != 2 {
+		t.Errorf("caller policy consulted %d times, want 2", calls)
 	}
 }
 
@@ -78,19 +101,39 @@ func TestInScope(t *testing.T) {
 
 func TestIsPublicIP(t *testing.T) {
 	cases := map[string]bool{
-		"23.192.228.80":   true,
-		"2600:1406::1":    true,
-		"127.0.0.1":       false,
-		"10.1.2.3":        false,
-		"172.16.0.1":      false,
-		"192.168.1.1":     false,
-		"169.254.169.254": false,
-		"100.64.0.1":      false,
-		"0.0.0.0":         false,
-		"::1":             false,
-		"fe80::1":         false,
-		"fd00::1":         false,
-		"224.0.0.1":       false,
+		"23.192.228.80":            true,
+		"2600:1406::1":             true,
+		"127.0.0.1":                false,
+		"10.1.2.3":                 false,
+		"172.16.0.1":               false,
+		"192.168.1.1":              false,
+		"169.254.169.254":          false,
+		"100.64.0.1":               false,
+		"0.0.0.0":                  false,
+		"::1":                      false,
+		"fe80::1":                  false,
+		"fd00::1":                  false,
+		"224.0.0.1":                false,
+		"192.0.2.10":               false, // TEST-NET-1
+		"198.51.100.7":             false, // TEST-NET-2
+		"203.0.113.9":              false, // TEST-NET-3
+		"198.18.0.1":               false, // benchmarking
+		"192.0.0.8":                false, // IETF protocol assignments
+		"240.0.0.1":                false, // reserved
+		"255.255.255.255":          false,
+		"::ffff:127.0.0.1":         false, // IPv4-mapped loopback
+		"::ffff:23.192.228.80":     true,
+		"::127.0.0.1":              false, // IPv4-compatible
+		"2001:db8::1":              false, // documentation
+		"3fff::1":                  false, // documentation
+		"2001:2::1":                false, // benchmarking
+		"2001::1":                  false, // Teredo
+		"2002:7f00:1::1":           false, // 6to4 embedding 127.0.0.1
+		"64:ff9b:1::1":             false, // local-use translation
+		"100::1":                   false, // discard-only
+		"fc00::1":                  false,
+		"8.8.8.8":                  true,
+		"2a00:1450:4009:81f::200e": true,
 	}
 	for in, want := range cases {
 		if got := scanner.IsPublicIP(net.ParseIP(in)); got != want {

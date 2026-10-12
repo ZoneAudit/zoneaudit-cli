@@ -153,9 +153,20 @@ type limitedTransport struct {
 	base    http.RoundTripper
 	limiter *Limiter
 	timeout time.Duration
+	// dialer, when set, is the public-address dialer used by base. The
+	// host is resolved (a counted DNS request with its own wait and
+	// timeout) before this request's own wait and timeout start.
+	dialer *publicDialer
 }
 
 func (t *limitedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.dialer != nil {
+		ctx, err := t.dialer.Resolve(req.Context(), req.URL.Hostname())
+		if err != nil {
+			return nil, err
+		}
+		req = req.WithContext(ctx)
+	}
 	if err := t.limiter.Wait(req.Context()); err != nil {
 		return nil, err
 	}
@@ -190,9 +201,16 @@ type limitedCertFetcher struct {
 	base    CertFetcher
 	limiter *Limiter
 	timeout time.Duration
+	dialer  *publicDialer // as in limitedTransport, when base uses it
 }
 
 func (f *limitedCertFetcher) FetchCertificates(ctx context.Context, host string) ([]*x509.Certificate, error) {
+	if f.dialer != nil {
+		var err error
+		if ctx, err = f.dialer.Resolve(ctx, host); err != nil {
+			return nil, err
+		}
+	}
 	if err := f.limiter.Wait(ctx); err != nil {
 		return nil, err
 	}
