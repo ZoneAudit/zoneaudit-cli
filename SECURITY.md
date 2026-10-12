@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Please report security vulnerabilities in ZoneAudit Community Edition by email to **security@cobrasphere.com**. Do not open a public GitHub issue for a vulnerability.
+Please report security vulnerabilities in ZoneAudit Community Edition by email to **security@connect.cobrasphere.com**. Do not open a public GitHub issue for a vulnerability.
 
 Please include:
 
