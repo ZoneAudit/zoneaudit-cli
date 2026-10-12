@@ -91,7 +91,7 @@ homebrew_casks:
     license: "MIT"
     commit_author:
       name: zoneaudit-release
-      email: security@connect.cobrasphere.com
+      email: security@nexus.cobrasphere.com
     commit_msg_template: "zoneaudit {{ .Tag }}"
     skip_upload: '{{ if eq (envOrDefault "PACKAGES_TOKEN" "") "" }}true{{ else }}false{{ end }}'
     hooks:
@@ -117,7 +117,7 @@ scoops:
     license: MIT
     commit_author:
       name: zoneaudit-release
-      email: security@connect.cobrasphere.com
+      email: security@nexus.cobrasphere.com
     commit_msg_template: "zoneaudit {{ .Tag }}"
     skip_upload: '{{ if eq (envOrDefault "PACKAGES_TOKEN" "") "" }}true{{ else }}false{{ end }}'
 
