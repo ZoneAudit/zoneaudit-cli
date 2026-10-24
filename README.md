@@ -5,11 +5,11 @@
 
 > **Languages:** [English](translations/README.en.md) | [Français](translations/README.fr.md) | [Deutsch](translations/README.de.md)
 
-**Read-only discovery of a domain's public footprint: subdomains, DNS, certificates, domain expiry and email security.**
+**Read-only discovery of a domain's public footprint, covering subdomains, DNS, certificates, domain expiry and email security.**
 
 ZoneAudit Community Edition checks a domain and 143 common hostnames under it. For each host that exists it reports the DNS records, flags a CNAME whose target no longer resolves (a dangling CNAME), reads the certificate's expiry date and issuer, and records the web server's banner and page title. For the domain itself it reads the registration expiry date from RDAP and checks SPF and DMARC, warning when DMARC is set to `p=none`.
 
-The CLI shows raw, read-only findings; the ZoneAudit service turns them into a prioritised, evidenced report.
+The CLI shows raw, read-only findings. The ZoneAudit service, which is preparing to launch, will turn them into a prioritised, evidenced report.
 
 ---
 
@@ -114,7 +114,7 @@ Duration: 0s | Active assets: 5
 For the full ZoneAudit review, request access at https://zoneaudit.com/?utm_source=cli
 ```
 
-This is the CLI's output against its test fixtures: the RDAP data for `example.com` is a recorded response, while the other hosts, records and certificates are invented to show each kind of finding, and the clock is fixed (hence `Duration: 0s`). A real scan of 143 hostnames at the default rate takes about 30 seconds.
+This is the CLI's output against its test fixtures. The RDAP data for `example.com` is a recorded response, while the other hosts, records and certificates are invented to show each kind of finding, and the clock is fixed (hence `Duration: 0s`). A real scan of 143 hostnames at the default rate takes about 30 seconds.
 
 ### JSON output
 
@@ -122,7 +122,7 @@ This is the CLI's output against its test fixtures: the RDAP data for `example.c
 zoneaudit -d example.com -json
 ```
 
-The JSON report has a `schema_version` field (currently `"1.1"`). Within major version 1, fields are never removed, renamed or given a new meaning; new optional fields may be added, which raises the minor number. The format is described in [docs/json-output.md](docs/json-output.md).
+The JSON report has a `schema_version` field (currently `"1.1"`). Within major version 1, fields are never removed, renamed or given a new meaning. New optional fields may be added, which raises the minor number. The format is described in [docs/json-output.md](docs/json-output.md).
 
 An abridged report from the same fixtures:
 
@@ -186,7 +186,7 @@ We are considering passive inspection of security headers (HSTS, CSP, X-Frame-Op
 
 ## From findings to a report
 
-This CLI collects the raw findings. The ZoneAudit service turns them into a prioritised, evidenced report, including DCC Level 0 readiness for suppliers to the Ministry of Defence.
+This CLI collects the raw findings. The ZoneAudit service, which is preparing to launch, will turn them into a prioritised, evidenced report, including DCC Level 0 readiness for suppliers to the Ministry of Defence.
 
 [Request access at zoneaudit.com](https://zoneaudit.com/?utm_source=github&utm_medium=readme&utm_campaign=community_edition)
 
@@ -195,7 +195,7 @@ This CLI collects the raw findings. The ZoneAudit service turns them into a prio
 ## Community
 
 - **Bugs and questions:** [open a GitHub issue](https://github.com/ZoneAudit/zoneaudit-cli/issues).
-- **Security vulnerabilities:** please do not open a public issue; see [SECURITY.md](SECURITY.md).
+- **Security vulnerabilities:** please do not open a public issue. See [SECURITY.md](SECURITY.md).
 - **Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Licence
